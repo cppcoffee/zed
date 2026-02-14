@@ -6,6 +6,11 @@ It contains our back-end logic for collaboration, to which we connect from the Z
 
 # Local Development
 
+## Configuration
+
+The collab server is configured via `.env.toml`. A template is provided in `.env.toml.template`.
+The `script/bootstrap` script will automatically create `.env.toml` from the template if it doesn't exist.
+
 ## Database setup
 
 Before you can run the collab server locally, you'll need to set up a zed Postgres database. Follow the steps sequentially:

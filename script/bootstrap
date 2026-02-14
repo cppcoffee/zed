@@ -45,6 +45,11 @@ fi
 
 cd crates/collab
 
+if [ ! -f .env.toml ]; then
+  echo "Creating .env.toml from template..."
+  cp .env.toml.template .env.toml
+fi
+
 # Export contents of .env.toml
 eval "$(cargo run --bin dotenv)"
 

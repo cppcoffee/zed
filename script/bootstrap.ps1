@@ -10,6 +10,11 @@ if (!(Get-Command sqlx -ErrorAction SilentlyContinue) -or (sqlx --version) -notl
 
 Set-Location .\crates\collab
 
+if (-not (Test-Path .env.toml)) {
+    Write-Output "Creating .env.toml from template..."
+    Copy-Item .env.toml.template .env.toml
+}
+
 # Export contents of .env.toml
 $env = (cargo run --bin dotenv) -join "`n";
 Invoke-Expression $env

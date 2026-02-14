@@ -1012,4 +1012,29 @@ mod tests {
             "uname".to_string()
         );
     }
+
+    #[test]
+    fn test_command_prefix() {
+        assert_eq!(ShellKind::Posix.command_prefix(), None);
+        assert_eq!(ShellKind::Csh.command_prefix(), None);
+        assert_eq!(ShellKind::Tcsh.command_prefix(), None);
+        assert_eq!(ShellKind::Rc.command_prefix(), None);
+        assert_eq!(ShellKind::Fish.command_prefix(), None);
+        assert_eq!(ShellKind::PowerShell.command_prefix(), Some('&'));
+        assert_eq!(ShellKind::Pwsh.command_prefix(), Some('&'));
+        assert_eq!(ShellKind::Nushell.command_prefix(), Some('^'));
+        assert_eq!(ShellKind::Cmd.command_prefix(), None);
+        assert_eq!(ShellKind::Xonsh.command_prefix(), None);
+        assert_eq!(ShellKind::Elvish.command_prefix(), None);
+    }
+
+    #[test]
+    fn test_prepend_command_prefix() {
+        assert_eq!(ShellKind::Posix.prepend_command_prefix("ls"), "ls");
+        assert_eq!(ShellKind::PowerShell.prepend_command_prefix("ls"), "&ls");
+        assert_eq!(ShellKind::PowerShell.prepend_command_prefix("&ls"), "&ls");
+        assert_eq!(ShellKind::Nushell.prepend_command_prefix("ls"), "^ls");
+        assert_eq!(ShellKind::Nushell.prepend_command_prefix("^ls"), "^ls");
+        assert_eq!(ShellKind::Cmd.prepend_command_prefix("dir"), "dir");
+    }
 }

@@ -6,7 +6,7 @@ use acp_thread::{
 };
 use acp_thread::{AgentConnection, Plan};
 use action_log::{ActionLog, ActionLogTelemetry};
-use agent::{NativeAgentServer, NativeAgentSessionList, SharedThread, ThreadStore};
+use agent::{NativeAgentServer, NativeAgentSessionList, RulesLoadingError, SharedThread, ThreadStore};
 use agent_client_protocol::{self as acp, PromptCapabilities};
 use agent_servers::{AgentServer, AgentServerDelegate};
 use agent_settings::{AgentProfileId, AgentSettings};
@@ -254,6 +254,7 @@ pub struct ConnectedServerState {
     active_id: Option<acp::SessionId>,
     threads: HashMap<acp::SessionId, Entity<AcpThreadView>>,
     connection: Rc<dyn AgentConnection>,
+    _subscriptions: Vec<Subscription>,
 }
 
 enum AuthState {
@@ -566,12 +567,31 @@ impl AcpServerView {
                         }
 
                         let id = current.read(cx).thread.read(cx).session_id().clone();
+
+                        let mut subscriptions = Vec::new();
+                        if let Some(native_conn) =
+                            connection.clone().downcast::<agent::NativeAgentConnection>()
+                        {
+                            subscriptions.push(cx.subscribe(
+                                &native_conn.0,
+                                |this, _agent, event: &RulesLoadingError, window, cx| {
+                                    this.notify_with_sound(
+                                        event.message.clone(),
+                                        IconName::Warning,
+                                        window,
+                                        cx,
+                                    );
+                                },
+                            ));
+                        }
+
                         this.set_server_state(
                             ServerState::Connected(ConnectedServerState {
                                 connection,
                                 auth_state: AuthState::Ok,
                                 active_id: Some(id.clone()),
                                 threads: HashMap::from_iter([(id, current)]),
+                                _subscriptions: subscriptions,
                             }),
                             cx,
                         );
@@ -882,6 +902,7 @@ impl AcpServerView {
                         active_id: None,
                         threads: HashMap::default(),
                         connection,
+                        _subscriptions: Vec::new(),
                     }),
                     cx,
                 );

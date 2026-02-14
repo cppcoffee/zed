@@ -1239,6 +1239,7 @@ Root: HKCU; Subkey: "Software\Classes\Applications\{#AppExeName}.exe\shell\open"
 Root: HKCU; Subkey: "Software\Classes\Applications\{#AppExeName}.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}.exe"" ""%1"""
 
 Root: HKCU; Subkey: "Software\Classes\{#RegValueName}ContextMenu"; ValueType: expandsz; ValueName: "Title"; ValueData: "{cm:OpenWithContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufiles; Flags: uninsdeletekey; Check: IsWindows11OrLater
+Root: HKCU; Subkey: "Software\Classes\{#RegValueName}ContextMenu"; ValueType: string; ValueName: "Path"; ValueData: "{app}\{#AppExeName}.exe"; Tasks: addcontextmenufiles; Flags: uninsdeletekey; Check: IsWindows11OrLater
 Root: HKCU; Subkey: "Software\Classes\*\shell\{#RegValueName}"; ValueType: expandsz; ValueName: ""; ValueData: "{cm:OpenWithContextMenu,{#ShellNameShort}}"; Tasks: addcontextmenufiles; Flags: uninsdeletekey; Check: not IsWindows11OrLater
 Root: HKCU; Subkey: "Software\Classes\*\shell\{#RegValueName}"; ValueType: expandsz; ValueName: "Icon"; ValueData: "{app}\{#AppExeName}.exe"; Tasks: addcontextmenufiles; Check: not IsWindows11OrLater
 Root: HKCU; Subkey: "Software\Classes\*\shell\{#RegValueName}\command"; ValueType: expandsz; ValueName: ""; ValueData: """{app}\{#AppExeName}.exe"" ""%1"""; Tasks: addcontextmenufiles; Check: not IsWindows11OrLater

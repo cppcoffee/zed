@@ -163,7 +163,7 @@ extern "system" fn DllGetClassObject(
     }
 }
 
-fn get_zed_install_folder() -> Option<PathBuf> {
+fn get_dll_path() -> Option<PathBuf> {
     let mut buf = vec![0u16; MAX_PATH as usize];
     unsafe { GetModuleFileNameW(Some(DLL_INSTANCE.into()), &mut buf) };
 
@@ -176,27 +176,49 @@ fn get_zed_install_folder() -> Option<PathBuf> {
         .into_string()
         .ok()?
         .into();
-    Some(path.parent()?.parent()?.to_path_buf())
+    Some(path)
+}
+
+fn identify_installation() -> Option<(String, PathBuf)> {
+    let dll_path = get_dll_path()?;
+    let candidate_exe = dll_path.parent()?.parent()?.join("Zed.exe");
+    let candidate_canonical = std::fs::canonicalize(&candidate_exe).ok()?;
+
+    const REG_KEYS: &[&str] = &[
+        "Software\\Classes\\ZedContextMenu",
+        "Software\\Classes\\ZedPreviewContextMenu",
+        "Software\\Classes\\ZedNightlyContextMenu",
+        "Software\\Classes\\ZedDevContextMenu",
+    ];
+
+    for &key_path in REG_KEYS {
+        if let Ok(key) = windows_registry::CURRENT_USER.open(key_path) {
+            if let Ok(path_hstring) = key.get_hstring("Path") {
+                let path_str = path_hstring.to_string_lossy();
+                let path = PathBuf::from(path_str);
+                if let Ok(canonical) = std::fs::canonicalize(&path) {
+                    if canonical == candidate_canonical {
+                        return Some((key_path.to_owned(), candidate_exe));
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 #[inline]
 fn get_zed_exe_path() -> Option<String> {
-    get_zed_install_folder().map(|path| path.join("Zed.exe").to_string_lossy().into_owned())
+    identify_installation().map(|(_, path)| path.to_string_lossy().into_owned())
 }
 
 #[inline]
 fn retrieve_command_description() -> Result<HSTRING> {
-    #[cfg(all(feature = "stable", not(feature = "preview"), not(feature = "nightly")))]
-    const REG_PATH: &str = "Software\\Classes\\ZedEditorContextMenu";
-    #[cfg(all(feature = "preview", not(feature = "stable"), not(feature = "nightly")))]
-    const REG_PATH: &str = "Software\\Classes\\ZedEditorPreviewContextMenu";
-    #[cfg(all(feature = "nightly", not(feature = "stable"), not(feature = "preview")))]
-    const REG_PATH: &str = "Software\\Classes\\ZedEditorNightlyContextMenu";
-
-    // Make cargo clippy happy
-    #[cfg(all(feature = "nightly", feature = "stable", feature = "preview"))]
-    const REG_PATH: &str = "Software\\Classes\\ZedEditorClippyContextMenu";
-
-    let key = windows_registry::CURRENT_USER.open(REG_PATH)?;
-    key.get_hstring("Title")
+    if let Some((reg_path, _)) = identify_installation() {
+        let key = windows_registry::CURRENT_USER.open(&reg_path)?;
+        key.get_hstring("Title")
+    } else {
+        Err(E_FAIL.into())
+    }
 }

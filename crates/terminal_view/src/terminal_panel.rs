@@ -1169,7 +1169,7 @@ pub fn prepare_task_for_spawn(
 ) -> SpawnInTerminal {
     let builder = ShellBuilder::new(shell, is_windows);
     let command_label = builder.command_label(task.command.as_deref().unwrap_or(""));
-    let (command, args) = builder.build_no_quote(task.command.clone(), &task.args);
+    let (command, args) = builder.build(task.command.clone(), &task.args);
 
     SpawnInTerminal {
         command_label,
@@ -1848,6 +1848,40 @@ mod tests {
     use project::FakeFs;
     use settings::SettingsStore;
     use workspace::MultiWorkspace;
+
+    #[test]
+    fn test_prepare_task_with_args_injection() {
+        let input = SpawnInTerminal {
+            command: Some("echo".to_string()),
+            args: vec!["foo; bar".to_string()],
+            ..SpawnInTerminal::default()
+        };
+        let shell = Shell::System;
+
+        let result = prepare_task_for_spawn(&input, &shell, false);
+
+        // With build (fix), the args are quoted: "echo 'foo; bar'"
+        // This means "foo; bar" is echoed.
+        let expected_arg = if cfg!(windows) {
+            // Windows quoting logic in ShellBuilder
+            if util::get_system_shell().contains("cmd") {
+                 "^\"echo ^\"foo; bar^\"^\""
+            } else {
+                 "'echo ''foo; bar'''"
+            }
+        } else {
+            // Posix quoting: echo 'foo; bar'
+            "echo 'foo; bar'"
+        };
+
+        // We check if any argument contains the expected quoted string.
+        // The args will look like ["-i", "-c", "echo 'foo; bar'"]
+        assert!(
+            result.args.iter().any(|arg| arg.contains(expected_arg) || arg.contains("'foo; bar'")),
+            "Expected args to contain quoted string, got {:?}",
+            result.args
+        );
+    }
 
     #[test]
     fn test_prepare_empty_task() {

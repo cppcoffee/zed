@@ -71,8 +71,9 @@ pub async fn validate_header<B>(mut req: Request<B>, next: Next<B>) -> impl Into
         access_token.strip_prefix("ADMIN_TOKEN:"),
         state.config.is_development(),
     ) {
+        let token_hash: [u8; 32] = sha2::Sha256::digest(admin_token.as_bytes()).into();
         Ok(VerifyAccessTokenResult {
-            is_valid: state.config.api_token == admin_token,
+            is_valid: token_hash.ct_eq(&state.api_token_hash).into(),
             impersonator_id: None,
         })
     } else {

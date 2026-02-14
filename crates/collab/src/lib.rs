@@ -15,6 +15,7 @@ use axum::{
 use db::Database;
 use executor::Executor;
 use serde::Deserialize;
+use sha2::Digest;
 use std::{path::PathBuf, sync::Arc};
 use util::ResultExt;
 
@@ -204,6 +205,7 @@ pub struct AppState {
     pub executor: Executor,
     pub kinesis_client: Option<::aws_sdk_kinesis::Client>,
     pub config: Config,
+    pub api_token_hash: [u8; 32],
 }
 
 impl AppState {
@@ -229,6 +231,7 @@ impl AppState {
         };
 
         let db = Arc::new(db);
+        let api_token_hash = sha2::Sha256::digest(config.api_token.as_bytes()).into();
         let this = Self {
             db: db.clone(),
             livekit_client,
@@ -240,6 +243,7 @@ impl AppState {
                 None
             },
             config,
+            api_token_hash,
         };
         Ok(Arc::new(this))
     }

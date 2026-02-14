@@ -32,6 +32,7 @@ use rpc::{
     proto::{self, ChannelRole},
 };
 use serde_json::json;
+use sha2::Digest as _;
 use session::{AppSession, Session};
 use settings::SettingsStore;
 use std::{
@@ -562,35 +563,38 @@ impl TestServer {
         livekit_test_server: &LivekitTestServer,
         executor: Executor,
     ) -> Arc<AppState> {
+        let config = Config {
+            http_port: 0,
+            database_url: "".into(),
+            database_max_connections: 0,
+            api_token: "".into(),
+            livekit_server: None,
+            livekit_key: None,
+            livekit_secret: None,
+            rust_log: None,
+            log_json: None,
+            zed_environment: "test".into(),
+            blob_store_url: None,
+            blob_store_region: None,
+            blob_store_access_key: None,
+            blob_store_secret_key: None,
+            blob_store_bucket: None,
+            zed_client_checksum_seed: None,
+            seed_path: None,
+            kinesis_region: None,
+            kinesis_stream: None,
+            kinesis_access_key: None,
+            kinesis_secret_key: None,
+        };
+        let api_token_hash = sha2::Sha256::digest(config.api_token.as_bytes()).into();
         Arc::new(AppState {
             db: test_db.db().clone(),
             livekit_client: Some(Arc::new(livekit_test_server.create_api_client())),
             blob_store_client: None,
             executor,
             kinesis_client: None,
-            config: Config {
-                http_port: 0,
-                database_url: "".into(),
-                database_max_connections: 0,
-                api_token: "".into(),
-                livekit_server: None,
-                livekit_key: None,
-                livekit_secret: None,
-                rust_log: None,
-                log_json: None,
-                zed_environment: "test".into(),
-                blob_store_url: None,
-                blob_store_region: None,
-                blob_store_access_key: None,
-                blob_store_secret_key: None,
-                blob_store_bucket: None,
-                zed_client_checksum_seed: None,
-                seed_path: None,
-                kinesis_region: None,
-                kinesis_stream: None,
-                kinesis_access_key: None,
-                kinesis_secret_key: None,
-            },
+            config,
+            api_token_hash,
         })
     }
 }

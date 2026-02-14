@@ -10,11 +10,12 @@ use smol::io::BufReader;
 use smol::{fs, lock::Mutex};
 use std::collections::HashMap;
 use std::fmt::Display;
+use smol::net::TcpStream;
 use std::{
     env::{self, consts},
     ffi::OsString,
     io,
-    net::{IpAddr, Ipv4Addr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::{Path, PathBuf},
     process::Output,
     sync::Arc,
@@ -610,7 +611,8 @@ impl NodeRuntimeTrait for ManagedNodeRuntime {
             proxy,
             subcommand,
             args,
-        );
+        )
+        .await;
         let command_env = npm_command_env(Some(&node_binary));
 
         Ok(NpmCommand {
@@ -751,7 +753,8 @@ impl NodeRuntimeTrait for SystemNodeRuntime {
             proxy,
             subcommand,
             args,
-        );
+        )
+        .await;
         let command_env = npm_command_env(Some(&self.node));
 
         Ok(NpmCommand {
@@ -848,22 +851,29 @@ fn configure_npm_command(command: &mut util::command::Command, directory: Option
     }
 }
 
-fn proxy_argument(proxy: Option<&Url>) -> Option<String> {
+async fn proxy_argument(proxy: Option<&Url>) -> Option<String> {
     let mut proxy = proxy.cloned()?;
     // Map proxy settings from `http://localhost:10809` to `http://127.0.0.1:10809`
     // NodeRuntime without environment information can not parse `localhost`
     // correctly.
-    // TODO: map to `[::1]` if we are using ipv6
     if matches!(proxy.host(), Some(Host::Domain(domain)) if domain.eq_ignore_ascii_case("localhost"))
     {
-        // When localhost is a valid Host, so is `127.0.0.1`
-        let _ = proxy.set_ip_host(IpAddr::V4(Ipv4Addr::LOCALHOST));
+        let port = proxy.port_or_known_default().unwrap_or(0);
+        if TcpStream::connect((Ipv6Addr::LOCALHOST, port))
+            .await
+            .is_ok()
+        {
+            let _ = proxy.set_ip_host(IpAddr::V6(Ipv6Addr::LOCALHOST));
+        } else {
+            // When localhost is a valid Host, so is `127.0.0.1`
+            let _ = proxy.set_ip_host(IpAddr::V4(Ipv4Addr::LOCALHOST));
+        }
     }
 
     Some(proxy.as_str().to_string())
 }
 
-fn build_npm_command_args(
+async fn build_npm_command_args(
     entrypoint: Option<&Path>,
     cache_dir: &Path,
     user_config: Option<&Path>,
@@ -886,7 +896,7 @@ fn build_npm_command_args(
         command_args.push("--globalconfig".into());
         command_args.push(global_config.to_string_lossy().into_owned());
     }
-    if let Some(proxy_arg) = proxy_argument(proxy) {
+    if let Some(proxy_arg) = proxy_argument(proxy).await {
         command_args.push("--proxy".into());
         command_args.push(proxy_arg);
     }
@@ -936,28 +946,49 @@ mod tests {
     // NodeRuntime without environment information can not parse `localhost` correctly.
     #[test]
     fn test_proxy_argument_map_localhost_proxy() {
-        const CASES: [(&str, &str); 4] = [
-            // Map localhost to 127.0.0.1
-            ("http://localhost:9090/", "http://127.0.0.1:9090/"),
-            ("https://google.com/", "https://google.com/"),
-            (
-                "http://username:password@proxy.thing.com:8080/",
-                "http://username:password@proxy.thing.com:8080/",
-            ),
-            // Test when localhost is contained within a different part of the URL
-            (
-                "http://username:localhost@localhost:8080/",
-                "http://username:localhost@127.0.0.1:8080/",
-            ),
-        ];
+        smol::block_on(async {
+            const CASES: [(&str, &str); 4] = [
+                // Map localhost to 127.0.0.1
+                ("http://localhost:9090/", "http://127.0.0.1:9090/"),
+                ("https://google.com/", "https://google.com/"),
+                (
+                    "http://username:password@proxy.thing.com:8080/",
+                    "http://username:password@proxy.thing.com:8080/",
+                ),
+                // Test when localhost is contained within a different part of the URL
+                (
+                    "http://username:localhost@localhost:8080/",
+                    "http://username:localhost@127.0.0.1:8080/",
+                ),
+            ];
 
-        for (proxy, mapped_proxy) in CASES {
-            let proxy = Url::parse(proxy).unwrap();
-            let proxy = proxy_argument(Some(&proxy)).expect("Proxy was not passed correctly");
-            assert_eq!(
-                proxy, mapped_proxy,
-                "Incorrectly mapped localhost to 127.0.0.1"
-            );
-        }
+            for (proxy, mapped_proxy) in CASES {
+                let proxy = Url::parse(proxy).unwrap();
+                let proxy = proxy_argument(Some(&proxy))
+                    .await
+                    .expect("Proxy was not passed correctly");
+                assert_eq!(
+                    proxy, mapped_proxy,
+                    "Incorrectly mapped localhost to 127.0.0.1"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn test_proxy_argument_ipv6() {
+        smol::block_on(async {
+            // Bind to IPv6 localhost to ensure [::1] is available and listening
+            let listener = smol::net::TcpListener::bind("[::1]:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+
+            let proxy_url = format!("http://localhost:{}/", port);
+            let mapped = proxy_argument(Some(&Url::parse(&proxy_url).unwrap()))
+                .await
+                .unwrap();
+
+            // Should be mapped to [::1] because it is listening
+            assert_eq!(mapped, format!("http://[::1]:{}/", port));
+        });
     }
 }

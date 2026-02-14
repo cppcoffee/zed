@@ -81,49 +81,87 @@ impl Scene {
             .last()
             .copied()
             .unwrap_or_else(|| self.primitive_bounds.insert(clipped_bounds));
-        match &mut primitive {
-            Primitive::Shadow(shadow) => {
+        match primitive {
+            Primitive::Shadow(mut shadow) => {
                 shadow.order = order;
-                self.shadows.push(shadow.clone());
+                self.paint_operations
+                    .push(PaintOperation::Shadow(self.shadows.len()));
+                self.shadows.push(shadow);
             }
-            Primitive::Quad(quad) => {
+            Primitive::Quad(mut quad) => {
                 quad.order = order;
-                self.quads.push(quad.clone());
+                self.paint_operations.push(PaintOperation::Quad(self.quads.len()));
+                self.quads.push(quad);
             }
-            Primitive::Path(path) => {
+            Primitive::Path(mut path) => {
                 path.order = order;
                 path.id = PathId(self.paths.len());
-                self.paths.push(path.clone());
+                self.paint_operations.push(PaintOperation::Path(self.paths.len()));
+                self.paths.push(path);
             }
-            Primitive::Underline(underline) => {
+            Primitive::Underline(mut underline) => {
                 underline.order = order;
-                self.underlines.push(underline.clone());
+                self.paint_operations
+                    .push(PaintOperation::Underline(self.underlines.len()));
+                self.underlines.push(underline);
             }
-            Primitive::MonochromeSprite(sprite) => {
+            Primitive::MonochromeSprite(mut sprite) => {
                 sprite.order = order;
-                self.monochrome_sprites.push(sprite.clone());
+                self.paint_operations.push(PaintOperation::MonochromeSprite(
+                    self.monochrome_sprites.len(),
+                ));
+                self.monochrome_sprites.push(sprite);
             }
-            Primitive::SubpixelSprite(sprite) => {
+            Primitive::SubpixelSprite(mut sprite) => {
                 sprite.order = order;
-                self.subpixel_sprites.push(sprite.clone());
+                self.paint_operations.push(PaintOperation::SubpixelSprite(
+                    self.subpixel_sprites.len(),
+                ));
+                self.subpixel_sprites.push(sprite);
             }
-            Primitive::PolychromeSprite(sprite) => {
+            Primitive::PolychromeSprite(mut sprite) => {
                 sprite.order = order;
-                self.polychrome_sprites.push(sprite.clone());
+                self.paint_operations.push(PaintOperation::PolychromeSprite(
+                    self.polychrome_sprites.len(),
+                ));
+                self.polychrome_sprites.push(sprite);
             }
-            Primitive::Surface(surface) => {
+            Primitive::Surface(mut surface) => {
                 surface.order = order;
-                self.surfaces.push(surface.clone());
+                self.paint_operations
+                    .push(PaintOperation::Surface(self.surfaces.len()));
+                self.surfaces.push(surface);
             }
         }
-        self.paint_operations
-            .push(PaintOperation::Primitive(primitive));
     }
 
     pub fn replay(&mut self, range: Range<usize>, prev_scene: &Scene) {
         for operation in &prev_scene.paint_operations[range] {
             match operation {
-                PaintOperation::Primitive(primitive) => self.insert_primitive(primitive.clone()),
+                PaintOperation::Shadow(ix) => {
+                    self.insert_primitive(prev_scene.shadows[*ix].clone())
+                }
+                PaintOperation::Quad(ix) => {
+                    self.insert_primitive(prev_scene.quads[*ix].clone())
+                }
+                PaintOperation::Path(ix) => {
+                    self.insert_primitive(prev_scene.paths[*ix].clone())
+                }
+                PaintOperation::Underline(ix) => {
+                    self.insert_primitive(prev_scene.underlines[*ix].clone())
+                }
+                PaintOperation::MonochromeSprite(ix) => {
+                    self.insert_primitive(prev_scene.monochrome_sprites[*ix].clone())
+                }
+                PaintOperation::SubpixelSprite(ix) => {
+                    self.insert_primitive(prev_scene.subpixel_sprites[*ix].clone())
+                }
+                PaintOperation::PolychromeSprite(ix) => {
+                    self.insert_primitive(prev_scene.polychrome_sprites[*ix].clone())
+                }
+                PaintOperation::Surface(ix) => {
+                    self.insert_primitive(prev_scene.surfaces[*ix].clone())
+                }
                 PaintOperation::StartLayer(bounds) => self.push_layer(*bounds),
                 PaintOperation::EndLayer => self.pop_layer(),
             }
@@ -173,6 +211,37 @@ impl Scene {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_replay() {
+        let mut scene = Scene::default();
+        // Need non-empty bounds for insertion to happen
+        let quad = Quad {
+            bounds: Bounds {
+                origin: Point::new(0.0.into(), 0.0.into()),
+                size: Size { width: 100.0.into(), height: 100.0.into() },
+            },
+            content_mask: ContentMask {
+                bounds: Bounds {
+                     origin: Point::new(0.0.into(), 0.0.into()),
+                     size: Size { width: 100.0.into(), height: 100.0.into() },
+                },
+            },
+            ..Default::default()
+        };
+        scene.insert_primitive(Primitive::Quad(quad.clone()));
+
+        let mut scene2 = Scene::default();
+        scene2.replay(0..scene.len(), &scene);
+
+        assert_eq!(scene2.len(), 1);
+        assert_eq!(scene2.quads.len(), 1);
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Default)]
 #[cfg_attr(
     all(
@@ -194,7 +263,14 @@ pub(crate) enum PrimitiveKind {
 }
 
 pub(crate) enum PaintOperation {
-    Primitive(Primitive),
+    Shadow(usize),
+    Quad(usize),
+    Path(usize),
+    Underline(usize),
+    MonochromeSprite(usize),
+    SubpixelSprite(usize),
+    PolychromeSprite(usize),
+    Surface(usize),
     StartLayer(Bounds<ScaledPixels>),
     EndLayer,
 }

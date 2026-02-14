@@ -1393,7 +1393,11 @@ impl ToolchainLister for PythonToolchainProvider {
                     }
 
                     if let Some(name) = &toolchain.environment.name {
-                        activation_script.push(format!("{manager} activate {name}"));
+                        if let Some(quoted_name) = shell.try_quote(name) {
+                            activation_script.push(format!("{manager} activate {quoted_name}"));
+                        } else {
+                            log::error!("Failed to quote conda environment name: {:?}", name);
+                        }
                     } else {
                         activation_script.push(format!("{manager} activate base"));
                     }
@@ -2788,6 +2792,70 @@ mod tests {
                 Some("foo\\bar".to_string())
             );
         }
+    }
+
+    #[gpui::test]
+    async fn test_conda_activation_script_injection(cx: &mut TestAppContext) {
+        use crate::python::{PythonToolchainData, PythonToolchainProvider};
+        use language::{LanguageName, Toolchain, ToolchainLister};
+        use pet_core::python_environment::{ManagerInfo, PythonEnvironment, PythonEnvironmentKind};
+        use settings::SettingsStore;
+        use task::ShellKind;
+        use terminal::terminal_settings::TerminalSettings;
+
+        cx.update(|cx| {
+            let test_settings = SettingsStore::test(cx);
+            cx.set_global(test_settings);
+            cx.update_global::<SettingsStore, _>(|store, cx| {
+                store.update_user_settings(cx, |s| {
+                    s.terminal
+                        .detect_venv
+                        .as_option_mut()
+                        .unwrap()
+                        .conda_manager = settings::CondaManager::Conda;
+                });
+            });
+        });
+
+        let provider = PythonToolchainProvider;
+        let malicious_name = "foo; rm -rf /";
+
+        let env = PythonEnvironment {
+            name: Some(malicious_name.to_string()),
+            kind: Some(PythonEnvironmentKind::Conda),
+            executable: Some(std::path::PathBuf::from("/tmp/conda/bin/python")),
+            version: None,
+            prefix: None,
+            manager: Some(ManagerInfo {
+                executable: std::env::current_exe().unwrap(),
+                version: None,
+            }),
+        };
+
+        let data = PythonToolchainData {
+            environment: env,
+            activation_scripts: None,
+        };
+
+        let toolchain = Toolchain {
+            name: "test".into(),
+            path: "/tmp/conda".into(),
+            language_name: LanguageName::new_static("Python"),
+            as_json: serde_json::to_value(data).unwrap(),
+        };
+
+        let script = cx
+            .update(|cx| provider.activation_script(&toolchain, ShellKind::Posix, cx))
+            .await;
+
+        // Assert that we get the quoted command
+        assert!(
+            script
+                .iter()
+                .any(|s| s.contains("conda activate 'foo; rm -rf /'")),
+            "Script should contain quoted malicious name, actual: {:?}",
+            script
+        );
     }
 
     #[test]

@@ -153,15 +153,10 @@ pub fn hash_access_token(token: &str) -> String {
 /// Encrypts the given access token with the given public key to avoid leaking it on the way
 /// to the client.
 pub fn encrypt_access_token(access_token: &str, public_key: String) -> Result<String> {
-    use rpc::auth::EncryptionFormat;
-
-    /// The encryption format to use for the access token.
-    const ENCRYPTION_FORMAT: EncryptionFormat = EncryptionFormat::V1;
-
     let native_app_public_key =
         rpc::auth::PublicKey::try_from(public_key).context("failed to parse app public key")?;
     let encrypted_access_token = native_app_public_key
-        .encrypt_string(access_token, ENCRYPTION_FORMAT)
+        .encrypt_string(access_token)
         .context("failed to encrypt access token with public key")?;
     Ok(encrypted_access_token)
 }

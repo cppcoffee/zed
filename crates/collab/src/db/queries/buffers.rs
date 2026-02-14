@@ -1,5 +1,6 @@
 use super::*;
 use anyhow::Context as _;
+use collections::{HashMap, HashSet};
 use prost::Message;
 use text::{EditOperation, UndoOperation};
 
@@ -135,25 +136,108 @@ impl Database {
         connection_id: ConnectionId,
     ) -> Result<Vec<RejoinedChannelBuffer>> {
         self.transaction(|tx| async move {
-            let mut results = Vec::new();
+            let channel_ids: Vec<ChannelId> = buffers
+                .iter()
+                .map(|b| ChannelId::from_proto(b.channel_id))
+                .collect();
+
+            let channels = channel::Entity::find()
+                .filter(channel::Column::Id.is_in(channel_ids.clone()))
+                .all(&*tx)
+                .await?;
+            let channels_by_id: HashMap<ChannelId, channel::Model> = channels
+                .into_iter()
+                .map(|c| (c.id, c))
+                .collect();
+
+            let mut root_ids = HashSet::default();
+            for channel in channels_by_id.values() {
+                root_ids.insert(channel.root_id());
+            }
+
+            let memberships = channel_member::Entity::find()
+                .filter(
+                    channel_member::Column::UserId
+                        .eq(user_id)
+                        .and(channel_member::Column::ChannelId.is_in(root_ids))
+                        .and(channel_member::Column::Accepted.eq(true)),
+                )
+                .all(&*tx)
+                .await?;
+
+            let memberships_by_root_id: HashMap<ChannelId, ChannelRole> = memberships
+                .into_iter()
+                .map(|m| (m.channel_id, m.role))
+                .collect();
+
+            let mut valid_channel_ids = Vec::new();
             for client_buffer in buffers {
-                let channel = self
-                    .get_channel_internal(ChannelId::from_proto(client_buffer.channel_id), &tx)
-                    .await?;
-                if self
-                    .check_user_is_channel_participant(&channel, user_id, &tx)
-                    .await
-                    .is_err()
-                {
+                let channel_id = ChannelId::from_proto(client_buffer.channel_id);
+                let Some(channel) = channels_by_id.get(&channel_id) else {
+                    log::info!("channel not found: {:?}", channel_id);
+                    continue;
+                };
+
+                let root_id = channel.root_id();
+                let Some(role) = memberships_by_root_id.get(&root_id) else {
                     log::info!("user is not a member of channel");
+                    continue;
+                };
+
+                if !role.can_see_channel(channel.visibility) {
+                    log::info!("user cannot see channel");
                     continue;
                 }
 
-                let buffer = self.get_channel_buffer(channel.id, &tx).await?;
-                let mut collaborators = channel_buffer_collaborator::Entity::find()
-                    .filter(channel_buffer_collaborator::Column::ChannelId.eq(channel.id))
-                    .all(&*tx)
-                    .await?;
+                match role {
+                    ChannelRole::Admin
+                    | ChannelRole::Member
+                    | ChannelRole::Guest
+                    | ChannelRole::Talker => {}
+                    ChannelRole::Banned => {
+                        log::info!("user is banned");
+                        continue;
+                    }
+                }
+                valid_channel_ids.push(channel_id);
+            }
+
+            let buffers_models = buffer::Entity::find()
+                .filter(buffer::Column::ChannelId.is_in(valid_channel_ids.clone()))
+                .all(&*tx)
+                .await?;
+            let buffers_by_channel_id: HashMap<ChannelId, buffer::Model> = buffers_models
+                .into_iter()
+                .map(|b| (b.channel_id, b))
+                .collect();
+
+            let collaborators_models = channel_buffer_collaborator::Entity::find()
+                .filter(channel_buffer_collaborator::Column::ChannelId.is_in(valid_channel_ids))
+                .all(&*tx)
+                .await?;
+            let mut collaborators_by_channel_id: HashMap<
+                ChannelId,
+                Vec<channel_buffer_collaborator::Model>,
+            > = HashMap::default();
+            for c in collaborators_models {
+                collaborators_by_channel_id
+                    .entry(c.channel_id)
+                    .or_default()
+                    .push(c);
+            }
+
+            let mut results = Vec::new();
+            let mut collaborator_ids_to_update = Vec::new();
+
+            for client_buffer in buffers {
+                let channel_id = ChannelId::from_proto(client_buffer.channel_id);
+
+                // We've already validated existence and permissions in the first loop.
+                // But we still need to check if the buffer exists in the map.
+                let Some(buffer) = buffers_by_channel_id.get(&channel_id) else {
+                    log::info!("buffer not found for channel: {:?}", channel_id);
+                    continue;
+                };
 
                 // If the buffer epoch hasn't changed since the client lost
                 // connection, then the client's buffer can be synchronized with
@@ -162,6 +246,11 @@ impl Database {
                     log::info!("can't rejoin buffer, epoch has changed");
                     continue;
                 }
+
+                let Some(collaborators) = collaborators_by_channel_id.get_mut(&channel_id) else {
+                    log::info!("no collaborators found for channel: {:?}", channel_id);
+                    continue;
+                };
 
                 // Find the collaborator record for this user's previous lost
                 // connection. Update it with the new connection id.
@@ -172,15 +261,11 @@ impl Database {
                     continue;
                 };
                 let old_connection_id = self_collaborator.connection();
-                *self_collaborator = channel_buffer_collaborator::ActiveModel {
-                    id: ActiveValue::Unchanged(self_collaborator.id),
-                    connection_id: ActiveValue::Set(connection_id.id as i32),
-                    connection_server_id: ActiveValue::Set(ServerId(connection_id.owner_id as i32)),
-                    connection_lost: ActiveValue::Set(false),
-                    ..Default::default()
-                }
-                .update(&*tx)
-                .await?;
+
+                self_collaborator.connection_id = connection_id.id as i32;
+                self_collaborator.connection_server_id = ServerId(connection_id.owner_id as i32);
+                self_collaborator.connection_lost = false;
+                collaborator_ids_to_update.push(self_collaborator.id);
 
                 let client_version = version_from_wire(&client_buffer.version);
                 let serialization_version = self
@@ -233,6 +318,23 @@ impl Database {
                             .collect(),
                     },
                 });
+            }
+
+            if !collaborator_ids_to_update.is_empty() {
+                channel_buffer_collaborator::Entity::update_many()
+                    .filter(
+                        channel_buffer_collaborator::Column::Id.is_in(collaborator_ids_to_update),
+                    )
+                    .set(channel_buffer_collaborator::ActiveModel {
+                        connection_id: ActiveValue::Set(connection_id.id as i32),
+                        connection_server_id: ActiveValue::Set(ServerId(
+                            connection_id.owner_id as i32
+                        )),
+                        connection_lost: ActiveValue::Set(false),
+                        ..Default::default()
+                    })
+                    .exec(&*tx)
+                    .await?;
             }
 
             Ok(results)

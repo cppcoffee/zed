@@ -36,7 +36,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::future::Shared;
 use futures::{FutureExt as _, StreamExt as _, future};
 use gpui::{
-    App, AppContext, AsyncApp, Context, Entity, SharedString, Subscription, Task, WeakEntity,
+    App, AppContext, AsyncApp, Context, Entity, EventEmitter, SharedString, Subscription, Task,
+    WeakEntity,
 };
 use language_model::{IconOrSvg, LanguageModel, LanguageModelProvider, LanguageModelRegistry};
 use project::{Project, ProjectItem, ProjectPath, Worktree};
@@ -60,6 +61,7 @@ pub struct ProjectSnapshot {
     pub timestamp: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug)]
 pub struct RulesLoadingError {
     pub message: SharedString,
 }
@@ -248,6 +250,8 @@ pub struct NativeAgent {
     _subscriptions: Vec<Subscription>,
 }
 
+impl EventEmitter<RulesLoadingError> for NativeAgent {}
+
 impl NativeAgent {
     pub async fn new(
         project: Entity<Project>,
@@ -259,11 +263,15 @@ impl NativeAgent {
     ) -> Result<Entity<NativeAgent>> {
         log::debug!("Creating new NativeAgent");
 
-        let project_context = cx
+        let (project_context, errors) = cx
             .update(|cx| Self::build_project_context(&project, prompt_store.as_ref(), cx))
             .await;
 
         Ok(cx.new(|cx| {
+            for error in errors {
+                cx.emit(error);
+            }
+
             let context_server_store = project.read(cx).context_server_store();
             let context_server_registry =
                 cx.new(|cx| ContextServerRegistry::new(context_server_store.clone(), cx));
@@ -415,12 +423,15 @@ impl NativeAgent {
         cx: &mut AsyncApp,
     ) -> Result<()> {
         while needs_refresh.changed().await.is_ok() {
-            let project_context = this
+            let (project_context, errors) = this
                 .update(cx, |this, cx| {
                     Self::build_project_context(&this.project, this.prompt_store.as_ref(), cx)
                 })?
                 .await;
             this.update(cx, |this, cx| {
+                for error in errors {
+                    cx.emit(error);
+                }
                 this.project_context = cx.new(|_| project_context);
             })?;
         }
@@ -432,7 +443,7 @@ impl NativeAgent {
         project: &Entity<Project>,
         prompt_store: Option<&Entity<PromptStore>>,
         cx: &mut App,
-    ) -> Task<ProjectContext> {
+    ) -> Task<(ProjectContext, Vec<RulesLoadingError>)> {
         let worktrees = project.read(cx).visible_worktrees(cx).collect::<Vec<_>>();
         let worktree_tasks = worktrees
             .into_iter()
@@ -457,13 +468,14 @@ impl NativeAgent {
             let (worktrees, default_user_rules) =
                 future::join(future::join_all(worktree_tasks), default_user_rules_task).await;
 
+            let mut errors = Vec::new();
+
             let worktrees = worktrees
                 .into_iter()
-                .map(|(worktree, _rules_error)| {
-                    // TODO: show error message
-                    // if let Some(rules_error) = rules_error {
-                    //     this.update(cx, |_, cx| cx.emit(rules_error)).ok();
-                    // }
+                .map(|(worktree, rules_error)| {
+                    if let Some(rules_error) = rules_error {
+                        errors.push(rules_error);
+                    }
                     worktree
                 })
                 .collect::<Vec<_>>();
@@ -476,20 +488,16 @@ impl NativeAgent {
                         title: prompt_metadata.title.map(|title| title.to_string()),
                         contents,
                     }),
-                    Err(_err) => {
-                        // TODO: show error message
-                        // this.update(cx, |_, cx| {
-                        //     cx.emit(RulesLoadingError {
-                        //         message: format!("{err:?}").into(),
-                        //     });
-                        // })
-                        // .ok();
+                    Err(err) => {
+                        errors.push(RulesLoadingError {
+                            message: format!("{err:?}").into(),
+                        });
                         None
                     }
                 })
                 .collect::<Vec<_>>();
 
-            ProjectContext::new(worktrees, default_user_rules)
+            (ProjectContext::new(worktrees, default_user_rules), errors)
         })
     }
 

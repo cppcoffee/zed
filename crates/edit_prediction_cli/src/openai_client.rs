@@ -14,6 +14,8 @@ use std::hash::Hasher;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use smol;
+
 pub struct PlainOpenAiClient {
     pub http_client: Arc<dyn HttpClient>,
     pub api_key: String,
@@ -64,7 +66,7 @@ impl PlainOpenAiClient {
 }
 
 pub struct BatchingOpenAiClient {
-    connection: Mutex<sqlez::connection::Connection>,
+    connection: Arc<Mutex<sqlez::connection::Connection>>,
     http_client: Arc<dyn HttpClient>,
     api_key: String,
 }
@@ -127,13 +129,13 @@ impl BatchingOpenAiClient {
         drop(statement);
 
         Ok(Self {
-            connection: Mutex::new(connection),
+            connection: Arc::new(Mutex::new(connection)),
             http_client,
             api_key,
         })
     }
 
-    pub fn lookup(
+    pub async fn lookup(
         &self,
         model: &str,
         max_tokens: u64,
@@ -141,17 +143,21 @@ impl BatchingOpenAiClient {
         seed: Option<usize>,
     ) -> Result<Option<OpenAiResponse>> {
         let request_hash_str = Self::request_hash(model, max_tokens, messages, seed);
-        let connection = self.connection.lock().unwrap();
-        let response: Vec<String> = connection.select_bound(
-            &sql!(SELECT response FROM openai_cache WHERE request_hash = ?1 AND response IS NOT NULL;),
-        )?(request_hash_str.as_str())?;
-        Ok(response
-            .into_iter()
-            .next()
-            .and_then(|text| serde_json::from_str(&text).ok()))
+        let connection = self.connection.clone();
+        smol::unblock(move || {
+            let connection = connection.lock().unwrap();
+            let response: Vec<String> = connection.select_bound(
+                &sql!(SELECT response FROM openai_cache WHERE request_hash = ?1 AND response IS NOT NULL;),
+            )?(request_hash_str.as_str())?;
+            Ok(response
+                .into_iter()
+                .next()
+                .and_then(|text| serde_json::from_str(&text).ok()))
+        })
+        .await
     }
 
-    pub fn mark_for_batch(
+    pub async fn mark_for_batch(
         &self,
         model: &str,
         max_tokens: u64,
@@ -181,11 +187,16 @@ impl BatchingOpenAiClient {
             response: None,
             batch_id: None,
         };
-        let connection = self.connection.lock().unwrap();
-        connection.exec_bound::<CacheRow>(sql!(
-            INSERT OR IGNORE INTO openai_cache(request_hash, request, response, batch_id) VALUES (?, ?, ?, ?)))?(
-            cache_row,
-        )
+
+        let connection = self.connection.clone();
+        smol::unblock(move || {
+            let connection = connection.lock().unwrap();
+            connection.exec_bound::<CacheRow>(sql!(
+                INSERT OR IGNORE INTO openai_cache(request_hash, request, response, batch_id) VALUES (?, ?, ?, ?)))?(
+                cache_row,
+            )
+        })
+        .await
     }
 
     async fn generate(
@@ -196,13 +207,14 @@ impl BatchingOpenAiClient {
         seed: Option<usize>,
         cache_only: bool,
     ) -> Result<Option<OpenAiResponse>> {
-        let response = self.lookup(model, max_tokens, &messages, seed)?;
+        let response = self.lookup(model, max_tokens, &messages, seed).await?;
         if let Some(response) = response {
             return Ok(Some(response));
         }
 
         if !cache_only {
-            self.mark_for_batch(model, max_tokens, &messages, seed)?;
+            self.mark_for_batch(model, max_tokens, &messages, seed)
+                .await?;
         }
 
         Ok(None)
@@ -306,23 +318,27 @@ impl BatchingOpenAiClient {
                 }
             }
 
-            let connection = self.connection.lock().unwrap();
-            connection.with_savepoint("batch_import", || {
-                let q = sql!(
-                    INSERT OR REPLACE INTO openai_cache(request_hash, request, response, batch_id)
-                    VALUES (?, (SELECT request FROM openai_cache WHERE request_hash = ?), ?, ?)
-                );
-                let mut exec = connection.exec_bound::<(&str, &str, &str, &str)>(q)?;
-                for (request_hash, response_json, batch_id) in &updates {
-                    exec((
-                        request_hash.as_str(),
-                        request_hash.as_str(),
-                        response_json.as_str(),
-                        batch_id.as_str(),
-                    ))?;
-                }
-                Ok(())
-            })?;
+            let connection = self.connection.clone();
+            smol::unblock(move || {
+                let connection = connection.lock().unwrap();
+                connection.with_savepoint("batch_import", || {
+                    let q = sql!(
+                        INSERT OR REPLACE INTO openai_cache(request_hash, request, response, batch_id)
+                        VALUES (?, (SELECT request FROM openai_cache WHERE request_hash = ?), ?, ?)
+                    );
+                    let mut exec = connection.exec_bound::<(&str, &str, &str, &str)>(q)?;
+                    for (request_hash, response_json, batch_id) in &updates {
+                        exec((
+                            request_hash.as_str(),
+                            request_hash.as_str(),
+                            response_json.as_str(),
+                            batch_id.as_str(),
+                        ))?;
+                    }
+                    Ok(())
+                })
+            })
+            .await?;
 
             log::info!(
                 "Imported batch {}: {} successful, {} errors",
@@ -337,9 +353,13 @@ impl BatchingOpenAiClient {
 
     async fn download_finished_batches(&self) -> Result<()> {
         let batch_ids: Vec<String> = {
-            let connection = self.connection.lock().unwrap();
-            let q = sql!(SELECT DISTINCT batch_id FROM openai_cache WHERE batch_id IS NOT NULL AND response IS NULL);
-            connection.select(q)?()?
+            let connection = self.connection.clone();
+            smol::unblock(move || {
+                let connection = connection.lock().unwrap();
+                let q = sql!(SELECT DISTINCT batch_id FROM openai_cache WHERE batch_id IS NOT NULL AND response IS NULL);
+                connection.select(q)?()
+            })
+            .await?
         };
 
         for batch_id in &batch_ids {
@@ -423,15 +443,19 @@ impl BatchingOpenAiClient {
                     }
                 }
 
-                let connection = self.connection.lock().unwrap();
-                connection.with_savepoint("batch_download", || {
-                    let q = sql!(UPDATE openai_cache SET response = ? WHERE request_hash = ?);
-                    let mut exec = connection.exec_bound::<(&str, &str)>(q)?;
-                    for (response_json, request_hash) in &updates {
-                        exec((response_json.as_str(), request_hash.as_str()))?;
-                    }
-                    Ok(())
-                })?;
+                let connection = self.connection.clone();
+                smol::unblock(move || {
+                    let connection = connection.lock().unwrap();
+                    connection.with_savepoint("batch_download", || {
+                        let q = sql!(UPDATE openai_cache SET response = ? WHERE request_hash = ?);
+                        let mut exec = connection.exec_bound::<(&str, &str)>(q)?;
+                        for (response_json, request_hash) in &updates {
+                            exec((response_json.as_str(), request_hash.as_str()))?;
+                        }
+                        Ok(())
+                    })
+                })
+                .await?;
                 log::info!("Downloaded {} successful requests", success_count);
             }
         }
@@ -446,13 +470,17 @@ impl BatchingOpenAiClient {
 
         loop {
             let rows: Vec<(String, String)> = {
-                let connection = self.connection.lock().unwrap();
-                let q = sql!(
-                    SELECT request_hash, request FROM openai_cache
-                    WHERE batch_id IS NULL AND response IS NULL
-                    LIMIT ?
-                );
-                connection.select_bound(q)?(BATCH_CHUNK_SIZE)?
+                let connection = self.connection.clone();
+                smol::unblock(move || {
+                    let connection = connection.lock().unwrap();
+                    let q = sql!(
+                        SELECT request_hash, request FROM openai_cache
+                        WHERE batch_id IS NULL AND response IS NULL
+                        LIMIT ?
+                    );
+                    connection.select_bound(q)?(BATCH_CHUNK_SIZE)
+                })
+                .await?
             };
 
             if rows.is_empty() {
@@ -530,15 +558,20 @@ impl BatchingOpenAiClient {
             .map_err(|e| anyhow::anyhow!("Failed to create batch: {:?}", e))?;
 
             {
-                let connection = self.connection.lock().unwrap();
-                connection.with_savepoint("batch_upload", || {
-                    let q = sql!(UPDATE openai_cache SET batch_id = ? WHERE request_hash = ?);
-                    let mut exec = connection.exec_bound::<(&str, &str)>(q)?;
-                    for hash in &request_hashes {
-                        exec((batch.id.as_str(), hash.as_str()))?;
-                    }
-                    Ok(())
-                })?;
+                let connection = self.connection.clone();
+                let batch_id = batch.id.clone();
+                smol::unblock(move || {
+                    let connection = connection.lock().unwrap();
+                    connection.with_savepoint("batch_upload", || {
+                        let q = sql!(UPDATE openai_cache SET batch_id = ? WHERE request_hash = ?);
+                        let mut exec = connection.exec_bound::<(&str, &str)>(q)?;
+                        for hash in &request_hashes {
+                            exec((batch_id.as_str(), hash.as_str()))?;
+                        }
+                        Ok(())
+                    })
+                })
+                .await?;
             }
 
             let batch_len = rows.len();

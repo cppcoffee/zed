@@ -3,7 +3,7 @@ use base64::prelude::*;
 use rand::prelude::*;
 use rsa::pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey};
 use rsa::traits::PaddingScheme;
-use rsa::{Oaep, Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
+use rsa::{Oaep, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 use std::convert::TryFrom;
 
@@ -13,14 +13,6 @@ fn oaep_sha256_padding() -> impl PaddingScheme {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum EncryptionFormat {
-    /// The original encryption format.
-    ///
-    /// This is using [`Pkcs1v15Encrypt`], which is vulnerable to side-channel attacks.
-    /// As such, we're in the process of phasing it out.
-    ///
-    /// See [here](https://people.redhat.com/~hkario/marvin/) for more details.
-    V0,
-
     /// The new encryption key format using Optimal Asymmetric Encryption Padding (OAEP) with a SHA-256 digest.
     V1,
 }
@@ -55,7 +47,6 @@ impl PublicKey {
         let mut rng = RsaRngCompat::new();
         let bytes = string.as_bytes();
         let encrypted_bytes = match format {
-            EncryptionFormat::V0 => self.0.encrypt(&mut rng, Pkcs1v15Encrypt, bytes),
             EncryptionFormat::V1 => self.0.encrypt(&mut rng, oaep_sha256_padding(), bytes),
         }
         .context("failed to encrypt string with public key")?;
@@ -73,11 +64,6 @@ impl PrivateKey {
         let bytes = self
             .0
             .decrypt(oaep_sha256_padding(), &encrypted_bytes)
-            .or_else(|_err| {
-                // If we failed to decrypt using the new format, try decrypting with the old
-                // one to handle mismatches between the client and server.
-                self.0.decrypt(Pkcs1v15Encrypt, &encrypted_bytes)
-            })
             .context("failed to decrypt string with private key")?;
         let string = String::from_utf8(bytes).context("decrypted content was not valid utf8")?;
         Ok(string)
@@ -157,33 +143,6 @@ mod tests {
         let public = PublicKey::try_from(public_string).unwrap();
         let token = random_token();
         let encrypted_token = public.encrypt_string(&token, EncryptionFormat::V1).unwrap();
-        assert_eq!(token.len(), 64);
-        assert_ne!(encrypted_token, token);
-        assert_printable(&token);
-        assert_printable(&encrypted_token);
-
-        // CLIENT:
-        // * decrypt the token using the private key.
-        let decrypted_token = private.decrypt_string(&encrypted_token).unwrap();
-        assert_eq!(decrypted_token, token);
-    }
-
-    #[test]
-    fn test_generate_encrypt_and_decrypt_token_with_v0_encryption_format() {
-        // CLIENT:
-        // * generate a keypair for asymmetric encryption
-        // * serialize the public key to send it to the server.
-        let (public, private) = keypair().unwrap();
-        let public_string = String::try_from(public).unwrap();
-        assert_printable(&public_string);
-
-        // SERVER:
-        // * parse the public key
-        // * generate a random token.
-        // * encrypt the token using the public key.
-        let public = PublicKey::try_from(public_string).unwrap();
-        let token = random_token();
-        let encrypted_token = public.encrypt_string(&token, EncryptionFormat::V0).unwrap();
         assert_eq!(token.len(), 64);
         assert_ne!(encrypted_token, token);
         assert_printable(&token);

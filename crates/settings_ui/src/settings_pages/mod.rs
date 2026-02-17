@@ -1,0 +1,15 @@
+pub mod ai;
+pub mod appearance;
+pub mod collaboration;
+pub mod debugger;
+pub mod editor;
+pub mod general;
+pub mod keymap;
+pub mod languages_and_tools;
+pub mod network;
+pub mod panels;
+pub mod search_and_files;
+pub mod terminal;
+pub mod utils;
+pub mod version_control;
+pub mod window_and_layout;

@@ -776,7 +776,7 @@ impl TerminalPanel {
         let workspace = self.workspace.clone();
         cx.spawn_in(window, async move |terminal_panel, cx| {
             if workspace.update(cx, |workspace, cx| !is_enabled_in_workspace(workspace, cx))? {
-                anyhow::bail!("terminal not yet supported for remote projects");
+                anyhow::bail!("terminal not yet supported for collaborative projects");
             }
             let pane = terminal_panel.update(cx, |terminal_panel, _| {
                 terminal_panel.pending_terminals_to_add += 1;
@@ -1169,7 +1169,7 @@ pub fn prepare_task_for_spawn(
 ) -> SpawnInTerminal {
     let builder = ShellBuilder::new(shell, is_windows);
     let command_label = builder.command_label(task.command.as_deref().unwrap_or(""));
-    let (command, args) = builder.build_no_quote(task.command.clone(), &task.args);
+    let (command, args) = builder.build(task.command.clone(), &task.args);
 
     SpawnInTerminal {
         command_label,
@@ -1870,6 +1870,28 @@ mod tests {
             result.command_label, expected_shell,
             "We show the shell launch for empty commands"
         );
+    }
+
+    #[test]
+    fn test_prepare_task_args_are_quoted() {
+        let input = SpawnInTerminal {
+            command: Some("echo".to_string()),
+            args: vec!["hello".to_string(), "; rm -rf /".to_string()],
+            ..SpawnInTerminal::default()
+        };
+        let shell = Shell::Program("sh".to_string());
+
+        let result = prepare_task_for_spawn(&input, &shell, false);
+
+        let args = result.args;
+        // Arguments should be ["-i", "-c", "echo 'hello' '; rm -rf /'"]
+        // The exact quoting might vary depending on OS but it should NOT contain unquoted ;
+
+        let command_line = args.last().unwrap();
+        // hello might not be quoted if not needed
+        assert!(command_line.contains("hello"));
+        // This part MUST be quoted to prevent injection
+        assert!(command_line.contains("'; rm -rf /'"));
     }
 
     #[gpui::test]

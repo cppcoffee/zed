@@ -237,7 +237,7 @@ async fn synthesize_repo(
                     let timestamp = Local::now().format("%Y-%m-%d--%H-%M-%S");
                     let filename = format!("{}--{}.md", repo_name, timestamp);
                     let path = config.output_dir.join(&filename);
-                    std::fs::write(&path, spec.to_markdown())?;
+                    smol::fs::write(&path, spec.to_markdown()).await?;
                     examples_generated += 1;
                     step_progress.set_info(filename, InfoStyle::Normal);
                 }
@@ -247,7 +247,7 @@ async fn synthesize_repo(
                     let filename = format!("{}--{}.md", repo_name, timestamp);
                     let path = FAILED_EXAMPLES_DIR.join(&filename);
                     let content = format_rejected_example(&claude_response, &rejection_reason);
-                    if let Err(e) = std::fs::write(&path, content) {
+                    if let Err(e) = smol::fs::write(&path, content).await {
                         log::warn!("Failed to write rejected example: {:?}", e);
                     }
                     step_progress.set_info(format!("rejected: {}", filename), InfoStyle::Warning);

@@ -5954,6 +5954,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "smol",
  "task",
  "tempfile",
  "toml 0.8.23",

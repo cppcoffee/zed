@@ -427,26 +427,36 @@ impl ExtensionBuilder {
 
         log::info!("downloading wasi-sdk to {}", wasi_sdk_dir.display());
 
-        if fs::metadata(&clang_path).is_ok_and(|metadata| metadata.is_file()) {
+        if smol::fs::metadata(&clang_path)
+            .await
+            .is_ok_and(|metadata| metadata.is_file())
+        {
             return Ok(clang_path);
         }
 
         let tar_out_dir = self.cache_dir.join("wasi-sdk-temp");
 
-        fs::remove_dir_all(&wasi_sdk_dir).ok();
-        fs::remove_dir_all(&tar_out_dir).ok();
-        fs::create_dir_all(&tar_out_dir).context("failed to create extraction directory")?;
+        smol::fs::remove_dir_all(&wasi_sdk_dir).await.ok();
+        smol::fs::remove_dir_all(&tar_out_dir).await.ok();
+        smol::fs::create_dir_all(&tar_out_dir)
+            .await
+            .context("failed to create extraction directory")?;
 
         let mut response = self.http.get(&url, AsyncBody::default(), true).await?;
 
         // Write the response to a temporary file
         let tar_gz_path = self.cache_dir.join("wasi-sdk.tar.gz");
-        let mut tar_gz_file =
-            fs::File::create(&tar_gz_path).context("failed to create temporary tar.gz file")?;
+        let mut tar_gz_file = smol::fs::File::create(&tar_gz_path)
+            .await
+            .context("failed to create temporary tar.gz file")?;
         let response_body = response.body_mut();
         let mut body_bytes = Vec::new();
         response_body.read_to_end(&mut body_bytes).await?;
-        std::io::Write::write_all(&mut tar_gz_file, &body_bytes)?;
+        {
+            use smol::io::AsyncWriteExt;
+            tar_gz_file.write_all(&body_bytes).await?;
+            tar_gz_file.flush().await?;
+        }
         drop(tar_gz_file);
 
         log::info!("un-tarring wasi-sdk to {}", tar_out_dir.display());
@@ -471,15 +481,19 @@ impl ExtensionBuilder {
         log::info!("finished downloading wasi-sdk");
 
         // Clean up the temporary tar.gz file
-        fs::remove_file(&tar_gz_path).ok();
+        smol::fs::remove_file(&tar_gz_path).await.ok();
 
-        let inner_dir = fs::read_dir(&tar_out_dir)?
+        let mut entries = smol::fs::read_dir(&tar_out_dir).await?;
+        let inner_dir = entries
             .next()
+            .await
             .context("no content")?
             .context("failed to read contents of extracted wasi archive directory")?
             .path();
-        fs::rename(&inner_dir, &wasi_sdk_dir).context("failed to move extracted wasi dir")?;
-        fs::remove_dir_all(&tar_out_dir).ok();
+        smol::fs::rename(&inner_dir, &wasi_sdk_dir)
+            .await
+            .context("failed to move extracted wasi dir")?;
+        smol::fs::remove_dir_all(&tar_out_dir).await.ok();
 
         Ok(clang_path)
     }
@@ -832,5 +846,53 @@ mod tests {
                 PathBuf::from_str("snippets.json").unwrap()
             ))
         )
+    }
+
+    #[gpui::test]
+    async fn test_install_wasi_sdk(_cx: &mut TestAppContext) {
+        use http_client::FakeHttpClient;
+
+        // A small tar.gz containing a directory "wasi-sdk" and a file "wasi-sdk/foo"
+        let tar_bytes: Vec<u8> = vec![
+            31, 139, 8, 0, 0, 0, 0, 0, 0, 3, 237, 209, 77, 10, 194, 64, 12, 134, 225, 28, 101, 46,
+            32, 78, 58, 147, 201, 121, 10, 42, 248, 3, 5, 199, 210, 235, 107, 23, 149, 174, 20, 23,
+            179, 40, 190, 207, 230, 91, 36, 144, 192, 55, 245, 245, 188, 171, 135, 235, 94, 218,
+            137, 47, 238, 54, 167, 186, 233, 58, 23, 162, 166, 217, 180, 115, 179, 44, 81, 181,
+            228, 36, 193, 26, 254, 244, 54, 214, 71, 127, 15, 65, 46, 227, 237, 88, 63, 236, 125,
+            155, 111, 212, 180, 244, 127, 26, 134, 86, 55, 230, 130, 75, 201, 63, 244, 223, 165,
+            228, 18, 98, 171, 135, 214, 254, 188, 127, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 219,
+            245, 4, 132, 187, 207, 102, 0, 40, 0, 0,
+        ];
+
+        let http = FakeHttpClient::create(move |_| {
+            let tar_bytes = tar_bytes.clone();
+            async move {
+                Ok(http_client::Response::builder()
+                    .status(200)
+                    .body(http_client::AsyncBody::from(tar_bytes))
+                    .unwrap())
+            }
+        });
+
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let cache_dir = tmp_dir.path().join("cache");
+        let builder = super::ExtensionBuilder::new(http, cache_dir.clone());
+
+        let result = builder.install_wasi_sdk_if_needed().await;
+        if let Err(e) = &result {
+            println!("install_wasi_sdk_if_needed failed: {:?}", e);
+        }
+        assert!(
+            result.is_ok(),
+            "install_wasi_sdk_if_needed failed: {:?}",
+            result.err()
+        );
+
+        let wasi_sdk_dir = cache_dir.join("wasi-sdk");
+        assert!(wasi_sdk_dir.exists(), "wasi-sdk dir not created");
+        assert!(
+            wasi_sdk_dir.join("foo").exists(),
+            "wasi-sdk/foo not extracted"
+        );
     }
 }

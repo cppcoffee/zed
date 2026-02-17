@@ -7304,6 +7304,24 @@ fn network_page() -> SettingsPage {
     }
 }
 
+macro_rules! language_setting_bool {
+    ($title:expr, $description:expr, $json_path:expr, $pick:expr, $write:expr) => {
+        SettingsPageItem::SettingItem(SettingItem {
+            title: $title,
+            description: $description,
+            field: Box::new(SettingField {
+                json_path: Some($json_path),
+                pick: |settings_content| language_settings_field(settings_content, $pick),
+                write: |settings_content, value| {
+                    language_settings_field_mut(settings_content, value, $write)
+                },
+            }),
+            metadata: None,
+            files: USER | PROJECT,
+        })
+    };
+}
+
 fn language_settings_field<T>(
     settings_content: &SettingsContent,
     get_language_setting_field: fn(&LanguageSettingsContent) -> Option<&T>,
@@ -7362,63 +7380,27 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
                 metadata: None,
                 files: USER | PROJECT,
             }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Hard Tabs",
-                description: "Whether to indent lines using tab characters, as opposed to multiple spaces.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).hard_tabs"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.hard_tabs.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.hard_tabs = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Auto Indent",
-                description: "Whether indentation should be adjusted based on the context whilst typing.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).auto_indent"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.auto_indent.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.auto_indent = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Auto Indent On Paste",
-                description: "Whether indentation of pasted content should be adjusted based on the context.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).auto_indent_on_paste"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.auto_indent_on_paste.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.auto_indent_on_paste = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Hard Tabs",
+                "Whether to indent lines using tab characters, as opposed to multiple spaces.",
+                "languages.$(language).hard_tabs",
+                |language| language.hard_tabs.as_ref(),
+                |language, value| language.hard_tabs = value
+            ),
+            language_setting_bool!(
+                "Auto Indent",
+                "Whether indentation should be adjusted based on the context whilst typing.",
+                "languages.$(language).auto_indent",
+                |language| language.auto_indent.as_ref(),
+                |language, value| language.auto_indent = value
+            ),
+            language_setting_bool!(
+                "Auto Indent On Paste",
+                "Whether indentation of pasted content should be adjusted based on the context.",
+                "languages.$(language).auto_indent_on_paste",
+                |language| language.auto_indent_on_paste.as_ref(),
+                |language, value| language.auto_indent_on_paste = value
+            ),
         ]
     }
 
@@ -7444,25 +7426,13 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
                 metadata: None,
                 files: USER | PROJECT,
             }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Show Wrap Guides",
-                description: "Show wrap guides in the editor.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).show_wrap_guides"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.show_wrap_guides.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.show_wrap_guides = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Show Wrap Guides",
+                "Show wrap guides in the editor.",
+                "languages.$(language).show_wrap_guides",
+                |language| language.show_wrap_guides.as_ref(),
+                |language, value| language.show_wrap_guides = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Preferred Line Length",
                 description: "The column at which to soft-wrap lines, for buffers where soft-wrap is enabled.",
@@ -7680,44 +7650,20 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
                 metadata: None,
                 files: USER | PROJECT,
             }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Remove Trailing Whitespace On Save",
-                description: "Whether or not to remove any trailing whitespace from lines of a buffer before saving it.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).remove_trailing_whitespace_on_save"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.remove_trailing_whitespace_on_save.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.remove_trailing_whitespace_on_save = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Ensure Final Newline On Save",
-                description: "Whether or not to ensure there's a single newline at the end of a buffer when saving it.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).ensure_final_newline_on_save"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.ensure_final_newline_on_save.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.ensure_final_newline_on_save = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Remove Trailing Whitespace On Save",
+                "Whether or not to remove any trailing whitespace from lines of a buffer before saving it.",
+                "languages.$(language).remove_trailing_whitespace_on_save",
+                |language| language.remove_trailing_whitespace_on_save.as_ref(),
+                |language, value| language.remove_trailing_whitespace_on_save = value
+            ),
+            language_setting_bool!(
+                "Ensure Final Newline On Save",
+                "Whether or not to ensure there's a single newline at the end of a buffer when saving it.",
+                "languages.$(language).ensure_final_newline_on_save",
+                |language| language.ensure_final_newline_on_save.as_ref(),
+                |language, value| language.ensure_final_newline_on_save = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Formatter",
                 description: "How to perform a buffer format.",
@@ -7744,25 +7690,13 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
                 metadata: None,
                 files: USER | PROJECT,
             }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Use On Type Format",
-                description: "Whether to use additional LSP queries to format (and amend) the code after every \"trigger\" symbol input, defined by LSP server capabilities",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).use_on_type_format"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.use_on_type_format.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.use_on_type_format = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Use On Type Format",
+                "Whether to use additional LSP queries to format (and amend) the code after every \"trigger\" symbol input, defined by LSP server capabilities",
+                "languages.$(language).use_on_type_format",
+                |language| language.use_on_type_format.as_ref(),
+                |language, value| language.use_on_type_format = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Code Actions On Format",
                 description: "Additional code actions to run when formatting.",
@@ -7795,83 +7729,34 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
     fn autoclose_section() -> [SettingsPageItem; 5] {
         [
             SettingsPageItem::SectionHeader("Autoclose"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Use Autoclose",
-                description: "Whether to automatically type closing characters for you. For example, when you type '(', Zed will automatically add a closing ')' at the correct position.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).use_autoclose"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.use_autoclose.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.use_autoclose = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Use Auto Surround",
-                description: "Whether to automatically surround text with characters for you. For example, when you select text and type '(', Zed will automatically surround text with ().",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).use_auto_surround"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.use_auto_surround.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.use_auto_surround = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Always Treat Brackets As Autoclosed",
-                description: "Controls whether the closing characters are always skipped over and auto-removed no matter how they were inserted.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).always_treat_brackets_as_autoclosed"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.always_treat_brackets_as_autoclosed.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.always_treat_brackets_as_autoclosed = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "JSX Tag Auto Close",
-                description: "Whether to automatically close JSX tags.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).jsx_tag_auto_close"),
-                    // TODO(settings_ui): this setting should just be a bool
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.jsx_tag_auto_close.as_ref()?.enabled.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.jsx_tag_auto_close.get_or_insert_default().enabled = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Use Autoclose",
+                "Whether to automatically type closing characters for you. For example, when you type '(', Zed will automatically add a closing ')' at the correct position.",
+                "languages.$(language).use_autoclose",
+                |language| language.use_autoclose.as_ref(),
+                |language, value| language.use_autoclose = value
+            ),
+            language_setting_bool!(
+                "Use Auto Surround",
+                "Whether to automatically surround text with characters for you. For example, when you select text and type '(', Zed will automatically surround text with ().",
+                "languages.$(language).use_auto_surround",
+                |language| language.use_auto_surround.as_ref(),
+                |language, value| language.use_auto_surround = value
+            ),
+            language_setting_bool!(
+                "Always Treat Brackets As Autoclosed",
+                "Controls whether the closing characters are always skipped over and auto-removed no matter how they were inserted.",
+                "languages.$(language).always_treat_brackets_as_autoclosed",
+                |language| language.always_treat_brackets_as_autoclosed.as_ref(),
+                |language, value| language.always_treat_brackets_as_autoclosed = value
+            ),
+            language_setting_bool!(
+                "JSX Tag Auto Close",
+                "Whether to automatically close JSX tags.",
+                "languages.$(language).jsx_tag_auto_close",
+                |language| language.jsx_tag_auto_close.as_ref()?.enabled.as_ref(),
+                |language, value| language.jsx_tag_auto_close.get_or_insert_default().enabled = value
+            ),
         ]
     }
 
@@ -7955,44 +7840,20 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
     fn completions_section() -> [SettingsPageItem; 7] {
         [
             SettingsPageItem::SectionHeader("Completions"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Show Completions On Input",
-                description: "Whether to pop the completions menu while typing in an editor without explicitly requesting it.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).show_completions_on_input"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.show_completions_on_input.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.show_completions_on_input = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Show Completion Documentation",
-                description: "Whether to display inline and alongside documentation for items in the completions menu.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).show_completion_documentation"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.show_completion_documentation.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.show_completion_documentation = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Show Completions On Input",
+                "Whether to pop the completions menu while typing in an editor without explicitly requesting it.",
+                "languages.$(language).show_completions_on_input",
+                |language| language.show_completions_on_input.as_ref(),
+                |language, value| language.show_completions_on_input = value
+            ),
+            language_setting_bool!(
+                "Show Completion Documentation",
+                "Whether to display inline and alongside documentation for items in the completions menu.",
+                "languages.$(language).show_completion_documentation",
+                |language| language.show_completion_documentation.as_ref(),
+                |language, value| language.show_completion_documentation = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Words",
                 description: "Controls how words are completed.",
@@ -8278,25 +8139,13 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
     fn tasks_section() -> [SettingsPageItem; 4] {
         [
             SettingsPageItem::SectionHeader("Tasks"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Enabled",
-                description: "Whether tasks are enabled for this language.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).tasks.enabled"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.tasks.as_ref()?.enabled.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.tasks.get_or_insert_default().enabled = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Enabled",
+                "Whether tasks are enabled for this language.",
+                "languages.$(language).tasks.enabled",
+                |language| language.tasks.as_ref()?.enabled.as_ref(),
+                |language, value| language.tasks.get_or_insert_default().enabled = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Variables",
                 description: "Extra task variables to set for a particular language.",
@@ -8323,50 +8172,26 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
                 metadata: None,
                 files: USER | PROJECT,
             }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Prefer LSP",
-                description: "Use LSP tasks over Zed language extension tasks.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).tasks.prefer_lsp"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.tasks.as_ref()?.prefer_lsp.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.tasks.get_or_insert_default().prefer_lsp = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Prefer LSP",
+                "Use LSP tasks over Zed language extension tasks.",
+                "languages.$(language).tasks.prefer_lsp",
+                |language| language.tasks.as_ref()?.prefer_lsp.as_ref(),
+                |language, value| language.tasks.get_or_insert_default().prefer_lsp = value
+            ),
         ]
     }
 
     fn miscellaneous_section() -> [SettingsPageItem; 6] {
         [
             SettingsPageItem::SectionHeader("Miscellaneous"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Word Diff Enabled",
-                description: "Whether to enable word diff highlighting in the editor. When enabled, changed words within modified lines are highlighted to show exactly what changed.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).word_diff_enabled"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.word_diff_enabled.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.word_diff_enabled = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Word Diff Enabled",
+                "Whether to enable word diff highlighting in the editor. When enabled, changed words within modified lines are highlighted to show exactly what changed.",
+                "languages.$(language).word_diff_enabled",
+                |language| language.word_diff_enabled.as_ref(),
+                |language, value| language.word_diff_enabled = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Debuggers",
                 description: "Preferred debuggers for this language.",
@@ -8406,44 +8231,20 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
                 metadata: None,
                 files: USER,
             }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Extend Comment On Newline",
-                description: "Whether to start a new line with a comment when a previous line is a comment as well.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).extend_comment_on_newline"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.extend_comment_on_newline.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.extend_comment_on_newline = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Colorize Brackets",
-                description: "Whether to colorize brackets in the editor.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).colorize_brackets"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.colorize_brackets.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.colorize_brackets = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Extend Comment On Newline",
+                "Whether to start a new line with a comment when a previous line is a comment as well.",
+                "languages.$(language).extend_comment_on_newline",
+                |language| language.extend_comment_on_newline.as_ref(),
+                |language, value| language.extend_comment_on_newline = value
+            ),
+            language_setting_bool!(
+                "Colorize Brackets",
+                "Whether to colorize brackets in the editor.",
+                "languages.$(language).colorize_brackets",
+                |language| language.colorize_brackets.as_ref(),
+                |language, value| language.colorize_brackets = value
+            ),
         ]
     }
 
@@ -8559,25 +8360,13 @@ fn non_editor_language_settings_data() -> Box<[SettingsPageItem]> {
     fn lsp_section() -> [SettingsPageItem; 8] {
         [
             SettingsPageItem::SectionHeader("LSP"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Enable Language Server",
-                description: "Whether to use language servers to provide code intelligence.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).enable_language_server"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.enable_language_server.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.enable_language_server = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Enable Language Server",
+                "Whether to use language servers to provide code intelligence.",
+                "languages.$(language).enable_language_server",
+                |language| language.enable_language_server.as_ref(),
+                |language, value| language.enable_language_server = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Language Servers",
                 description: "The list of language servers to use (or disable) for this language.",
@@ -8604,25 +8393,13 @@ fn non_editor_language_settings_data() -> Box<[SettingsPageItem]> {
                 metadata: None,
                 files: USER | PROJECT,
             }),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Linked Edits",
-                description: "Whether to perform linked edits of associated ranges, if the LS supports it. For example, when editing opening <html> tag, the contents of the closing </html> tag will be edited as well.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).linked_edits"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.linked_edits.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.linked_edits = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Linked Edits",
+                "Whether to perform linked edits of associated ranges, if the LS supports it. For example, when editing opening <html> tag, the contents of the closing </html> tag will be edited as well.",
+                "languages.$(language).linked_edits",
+                |language| language.linked_edits.as_ref(),
+                |language, value| language.linked_edits = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Go To Definition Fallback",
                 description: "Whether to follow-up empty Go to definition responses from the language server.",
@@ -8717,25 +8494,13 @@ fn non_editor_language_settings_data() -> Box<[SettingsPageItem]> {
     fn lsp_completions_section() -> [SettingsPageItem; 4] {
         [
             SettingsPageItem::SectionHeader("LSP Completions"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Enabled",
-                description: "Whether to fetch LSP completions or not.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).completions.lsp"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.completions.as_ref()?.lsp.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.completions.get_or_insert_default().lsp = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Enabled",
+                "Whether to fetch LSP completions or not.",
+                "languages.$(language).completions.lsp",
+                |language| language.completions.as_ref()?.lsp.as_ref(),
+                |language, value| language.completions.get_or_insert_default().lsp = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Fetch Timeout (milliseconds)",
                 description: "When fetching LSP completions, determines how long to wait for a response of a particular server (set to 0 to wait indefinitely).",
@@ -8815,25 +8580,13 @@ fn non_editor_language_settings_data() -> Box<[SettingsPageItem]> {
     fn prettier_section() -> [SettingsPageItem; 5] {
         [
             SettingsPageItem::SectionHeader("Prettier"),
-            SettingsPageItem::SettingItem(SettingItem {
-                title: "Allowed",
-                description: "Enables or disables formatting with Prettier for a given language.",
-                field: Box::new(SettingField {
-                    json_path: Some("languages.$(language).prettier.allowed"),
-                    pick: |settings_content| {
-                        language_settings_field(settings_content, |language| {
-                            language.prettier.as_ref()?.allowed.as_ref()
-                        })
-                    },
-                    write: |settings_content, value| {
-                        language_settings_field_mut(settings_content, value, |language, value| {
-                            language.prettier.get_or_insert_default().allowed = value;
-                        })
-                    },
-                }),
-                metadata: None,
-                files: USER | PROJECT,
-            }),
+            language_setting_bool!(
+                "Allowed",
+                "Enables or disables formatting with Prettier for a given language.",
+                "languages.$(language).prettier.allowed",
+                |language| language.prettier.as_ref()?.allowed.as_ref(),
+                |language, value| language.prettier.get_or_insert_default().allowed = value
+            ),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Parser",
                 description: "Forces Prettier integration to use a specific parser name when formatting files with the language.",
@@ -8928,25 +8681,13 @@ fn edit_prediction_language_settings_section() -> [SettingsPageItem; 4] {
             files: USER,
             render: render_edit_prediction_setup_page
         }),
-        SettingsPageItem::SettingItem(SettingItem {
-            title: "Show Edit Predictions",
-            description: "Controls whether edit predictions are shown immediately or manually.",
-            field: Box::new(SettingField {
-                json_path: Some("languages.$(language).show_edit_predictions"),
-                pick: |settings_content| {
-                    language_settings_field(settings_content, |language| {
-                        language.show_edit_predictions.as_ref()
-                    })
-                },
-                write: |settings_content, value| {
-                    language_settings_field_mut(settings_content, value, |language, value| {
-                        language.show_edit_predictions = value;
-                    })
-                },
-            }),
-            metadata: None,
-            files: USER | PROJECT,
-        }),
+        language_setting_bool!(
+            "Show Edit Predictions",
+            "Controls whether edit predictions are shown immediately or manually.",
+            "languages.$(language).show_edit_predictions",
+            |language| language.show_edit_predictions.as_ref(),
+            |language, value| language.show_edit_predictions = value
+        ),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Disable in Language Scopes",
             description: "Controls whether edit predictions are shown in the given language scopes.",

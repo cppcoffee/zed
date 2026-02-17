@@ -1,5 +1,6 @@
 mod components;
 mod page_data;
+mod settings_pages;
 pub mod pages;
 
 use anyhow::{Context as _, Result};
@@ -713,14 +714,14 @@ pub fn open_settings_editor(
 static ACTIVE_LANGUAGE: LazyLock<RwLock<Option<SharedString>>> =
     LazyLock::new(|| RwLock::new(Option::None));
 
-fn active_language() -> Option<SharedString> {
+pub(crate) fn active_language() -> Option<SharedString> {
     ACTIVE_LANGUAGE
         .read()
         .ok()
         .and_then(|language| language.clone())
 }
 
-fn active_language_mut() -> Option<std::sync::RwLockWriteGuard<'static, Option<SharedString>>> {
+pub(crate) fn active_language_mut() -> Option<std::sync::RwLockWriteGuard<'static, Option<SharedString>>> {
     ACTIVE_LANGUAGE.write().ok()
 }
 
@@ -1388,7 +1389,7 @@ impl PartialEq for ActionLink {
     }
 }
 
-fn all_language_names(cx: &App) -> Vec<SharedString> {
+pub(crate) fn all_language_names(cx: &App) -> Vec<SharedString> {
     workspace::AppState::global(cx)
         .upgrade()
         .map_or(vec![], |state| {

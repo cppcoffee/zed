@@ -47,14 +47,22 @@ impl RenderOnce for PanelTab {
     }
 }
 
+trait PanelButtonStyle: ButtonCommon + Sized {
+    fn panel_style(self) -> Self {
+        // TODO: Change this once we use on_surface_bg in button_like
+        self.layer(ui::ElevationIndex::ModalSurface)
+    }
+}
+
+impl<B: ButtonCommon> PanelButtonStyle for B {}
+
 pub fn panel_button(label: impl Into<SharedString>) -> ui::Button {
     let label = label.into();
     let id = ElementId::Name(label.to_lowercase().replace(' ', "_").into());
     ui::Button::new(id, label)
         .label_size(ui::LabelSize::Small)
         .icon_size(ui::IconSize::Small)
-        // TODO: Change this once we use on_surface_bg in button_like
-        .layer(ui::ElevationIndex::ModalSurface)
+        .panel_style()
         .size(ui::ButtonSize::Compact)
 }
 
@@ -65,9 +73,7 @@ pub fn panel_filled_button(label: impl Into<SharedString>) -> ui::Button {
 pub fn panel_icon_button(id: impl Into<SharedString>, icon: IconName) -> ui::IconButton {
     let id = ElementId::Name(id.into());
 
-    IconButton::new(id, icon)
-        // TODO: Change this once we use on_surface_bg in button_like
-        .layer(ui::ElevationIndex::ModalSurface)
+    IconButton::new(id, icon).panel_style()
 }
 
 pub fn panel_filled_icon_button(id: impl Into<SharedString>, icon: IconName) -> ui::IconButton {

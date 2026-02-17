@@ -140,13 +140,19 @@ impl PythonDebugAdapter {
             bail!("debugpy installation failed (could not fetch Debugpy's wheel)");
         }
 
-        let wheel_path = std::fs::read_dir(&download_dir)?
-            .find_map(|entry| {
-                entry.ok().filter(|e| {
-                    e.file_type().is_ok_and(|typ| typ.is_file())
-                        && Path::new(&e.file_name()).extension() == Some("whl".as_ref())
-                })
-            })
+        let mut entries = smol::fs::read_dir(&download_dir).await?;
+        let mut wheel_path = None;
+        while let Some(entry) = entries.next().await {
+            if let Ok(entry) = entry {
+                if entry.file_type().await.is_ok_and(|t| t.is_file())
+                    && Path::new(&entry.file_name()).extension() == Some("whl".as_ref())
+                {
+                    wheel_path = Some(entry);
+                    break;
+                }
+            }
+        }
+        let wheel_path = wheel_path
             .with_context(|| format!("Did not find a .whl in {download_dir:?}"))?;
 
         util::archive::extract_zip(

@@ -11,6 +11,7 @@ use axum::{
 };
 use base64::prelude::*;
 use prometheus::{Histogram, exponential_buckets, register_histogram};
+use rand::Rng;
 pub use rpc::auth::random_token;
 use scrypt::{
     Scrypt,
@@ -126,7 +127,7 @@ pub async fn create_access_token(
 ) -> Result<String> {
     const VERSION: usize = 1;
     let access_token = rpc::auth::random_token();
-    let access_token_hash = hash_access_token(&access_token);
+    let access_token_hash = generate_access_token_hash(&access_token);
     let id = db
         .create_access_token(
             user_id,
@@ -145,6 +146,26 @@ pub async fn create_access_token(
 /// Hashing prevents anyone with access to the database being able to login.
 /// As the token is randomly generated, we don't need to worry about scrypt-style
 /// protection.
+pub fn generate_access_token_hash(token: &str) -> String {
+    let mut rng = rand::rng();
+    let mut salt = [0u8; 16];
+    rng.fill(&mut salt);
+    let digest = compute_salted_hash(token, &salt);
+    format!(
+        "$sha256s${}${}",
+        BASE64_URL_SAFE.encode(salt),
+        BASE64_URL_SAFE.encode(digest)
+    )
+}
+
+fn compute_salted_hash(token: &str, salt: &[u8]) -> Vec<u8> {
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(salt);
+    hasher.update(token.as_bytes());
+    hasher.finalize().to_vec()
+}
+
+#[deprecated(note = "use generate_access_token_hash instead")]
 pub fn hash_access_token(token: &str) -> String {
     let digest = sha2::Sha256::digest(token);
     format!("$sha256${}", BASE64_URL_SAFE.encode(digest))
@@ -196,22 +217,38 @@ pub async fn verify_access_token(
     }
     let t0 = Instant::now();
 
+    let mut needs_upgrade = false;
     let is_valid = if db_token.hash.starts_with("$scrypt$") {
+        needs_upgrade = true;
         let db_hash = PasswordHash::new(&db_token.hash).map_err(anyhow::Error::new)?;
         Scrypt
             .verify_password(token.token.as_bytes(), &db_hash)
             .is_ok()
-    } else {
+    } else if db_token.hash.starts_with("$sha256s$") {
+        let parts: Vec<&str> = db_token.hash.split('$').collect();
+        if parts.len() == 4 {
+            let salt = BASE64_URL_SAFE.decode(parts[2]).unwrap_or_default();
+            let stored_digest = BASE64_URL_SAFE.decode(parts[3]).unwrap_or_default();
+            let computed_digest = compute_salted_hash(&token.token, &salt);
+            stored_digest.ct_eq(&computed_digest).into()
+        } else {
+            false
+        }
+    } else if db_token.hash.starts_with("$sha256$") {
+        needs_upgrade = true;
+        #[allow(deprecated)]
         let token_hash = hash_access_token(&token.token);
         db_token.hash.as_bytes().ct_eq(token_hash.as_ref()).into()
+    } else {
+        false
     };
 
     let duration = t0.elapsed();
     log::info!("hashed access token in {:?}", duration);
     metric_access_token_hashing_time.observe(duration.as_millis() as f64);
 
-    if is_valid && db_token.hash.starts_with("$scrypt$") {
-        let new_hash = hash_access_token(&token.token);
+    if is_valid && needs_upgrade {
+        let new_hash = generate_access_token_hash(&token.token);
         db.update_access_token_hash(db_token.id, &new_hash).await?;
     }
 

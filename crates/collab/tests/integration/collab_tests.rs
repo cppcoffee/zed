@@ -82,7 +82,21 @@ mod auth_token_tests {
             .await
             .unwrap();
 
+        // 1. Verify new token format
         let token = create_access_token(db, user.user_id, None).await.unwrap();
+        let token_id = serde_json::from_str::<AccessTokenJson>(&token).unwrap().id;
+        let hash = db
+            .transaction(|tx| async move {
+                Ok(access_token::Entity::find_by_id(token_id)
+                    .one(&*tx)
+                    .await?)
+            })
+            .await
+            .unwrap()
+            .unwrap()
+            .hash;
+        assert!(hash.starts_with("$sha256s$"));
+
         assert!(matches!(
             verify_access_token(&token, user.user_id, db).await.unwrap(),
             VerifyAccessTokenResult {
@@ -91,6 +105,7 @@ mod auth_token_tests {
             }
         ));
 
+        // 2. Verify migration from Scrypt to Salted SHA256
         let old_token = create_previous_access_token(user.user_id, None, db)
             .await
             .unwrap();
@@ -131,7 +146,7 @@ mod auth_token_tests {
             .unwrap()
             .unwrap()
             .hash;
-        assert!(hash.starts_with("$sha256$"));
+        assert!(hash.starts_with("$sha256s$"));
 
         assert!(matches!(
             verify_access_token(&old_token, user.user_id, db)
@@ -143,13 +158,76 @@ mod auth_token_tests {
             }
         ));
 
+        // 3. Verify migration from Unsalted SHA256 to Salted SHA256
+        let unsalted_token = create_unsalted_sha256_access_token(user.user_id, None, db)
+            .await
+            .unwrap();
+        let unsalted_token_id = serde_json::from_str::<AccessTokenJson>(&unsalted_token)
+            .unwrap()
+            .id;
+
+        let hash = db
+            .transaction(|tx| async move {
+                Ok(access_token::Entity::find_by_id(unsalted_token_id)
+                    .one(&*tx)
+                    .await?)
+            })
+            .await
+            .unwrap()
+            .unwrap()
+            .hash;
+        assert!(hash.starts_with("$sha256$"));
+
         assert!(matches!(
-            verify_access_token(&token, user.user_id, db).await.unwrap(),
+            verify_access_token(&unsalted_token, user.user_id, db)
+                .await
+                .unwrap(),
             VerifyAccessTokenResult {
                 is_valid: true,
                 impersonator_id: None,
             }
         ));
+
+        let hash = db
+            .transaction(|tx| async move {
+                Ok(access_token::Entity::find_by_id(unsalted_token_id)
+                    .one(&*tx)
+                    .await?)
+            })
+            .await
+            .unwrap()
+            .unwrap()
+            .hash;
+        assert!(hash.starts_with("$sha256s$"));
+
+        // 4. Verify uniqueness (Salt works)
+        let same_token_str = "same_token_string";
+        let h1 = collab::auth::generate_access_token_hash(same_token_str);
+        let h2 = collab::auth::generate_access_token_hash(same_token_str);
+        assert_ne!(h1, h2);
+    }
+
+    async fn create_unsalted_sha256_access_token(
+        user_id: UserId,
+        impersonated_user_id: Option<UserId>,
+        db: &Database,
+    ) -> Result<String> {
+        let access_token = collab::auth::random_token();
+        #[allow(deprecated)]
+        let access_token_hash = collab::auth::hash_access_token(&access_token);
+        let id = db
+            .create_access_token(
+                user_id,
+                impersonated_user_id,
+                &access_token_hash,
+                MAX_ACCESS_TOKENS_TO_STORE,
+            )
+            .await?;
+        Ok(serde_json::to_string(&AccessTokenJson {
+            version: 1,
+            id,
+            token: access_token,
+        })?)
     }
 
     async fn create_previous_access_token(

@@ -1862,6 +1862,9 @@
     // to prevent this, and force Zed to always download and install its own
     // version of Node.
     "ignore_system_version": false,
+    // If enabled, Zed will download its own copy of Node if no suitable version
+    // is found on your `$PATH`.
+    "allow_binary_download": true,
     // You can also specify alternative paths to Node and NPM. If you specify
     // `path`, but not `npm_path`, Zed will assume that `npm` is located at
     // `${path}/../npm`.

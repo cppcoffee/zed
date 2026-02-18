@@ -183,23 +183,17 @@ impl NodeRuntime {
             }
         } else if let Some(system_node_error) = system_node_error {
             // failure case not cached, since it's cheap to check again
-            //
-            // TODO: When support is added for setting `options.allow_binary_download`, update this
-            // error message.
             return Box::new(UnavailableNodeRuntime {
                 error_message: format!(
-                    "failure while checking system Node.js from PATH: {}",
+                    "failure while checking system Node.js from PATH: {}. To allow Zed to download Node.js, set `node.allow_binary_download` to `true`.",
                     system_node_error
                 )
                 .into(),
             });
         } else {
             // failure case is cached because it will always happen with these options
-            //
-            // TODO: When support is added for setting `options.allow_binary_download`, update this
-            // error message.
             Box::new(UnavailableNodeRuntime {
-                error_message: "`node` settings do not allow any way to use Node.js"
+                error_message: "`node` settings do not allow any way to use Node.js. To allow Zed to download Node.js, set `node.allow_binary_download` to `true`."
                     .to_string()
                     .into(),
             })

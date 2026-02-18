@@ -5,6 +5,7 @@ use dap::{DapLocator, DebugRequest, adapters::DebugAdapterName};
 use gpui::{BackgroundExecutor, SharedString};
 use serde::{Deserialize, Serialize};
 use task::{DebugScenario, SpawnInTerminal, TaskTemplate};
+use util::shell::ShellKind;
 
 pub struct GoLocator;
 
@@ -112,58 +113,41 @@ impl DapLocator for GoLocator {
                 let mut seen_pkg = false;
                 let mut seen_v = false;
 
-                for arg in build_config.args.iter().skip(1) {
-                    if all_args_are_test || next_arg_is_test {
-                        // HACK: tasks assume that they are run in a shell context,
-                        // so the -run regex has escaped specials. Delve correctly
-                        // handles escaping, so we undo that here.
-                        if let Some((left, right)) = arg.split_once("/")
-                            && left.starts_with("\\^")
-                            && left.ends_with("\\$")
-                            && right.starts_with("\\^")
-                            && right.ends_with("\\$")
-                        {
-                            let mut left = left[1..left.len() - 2].to_string();
-                            left.push('$');
-
-                            let mut right = right[1..right.len() - 2].to_string();
-                            right.push('$');
-
-                            args.push(format!("{left}/{right}"));
-                        } else if arg.starts_with("\\^") && arg.ends_with("\\$") {
-                            let mut arg = arg[1..arg.len() - 2].to_string();
-                            arg.push('$');
+                for raw_arg in build_config.args.iter().skip(1) {
+                    let parts = ShellKind::Posix
+                        .split(raw_arg)
+                        .unwrap_or(vec![raw_arg.clone()]);
+                    for arg in parts {
+                        if all_args_are_test || next_arg_is_test {
                             args.push(arg);
+                            next_arg_is_test = false;
+                        } else if next_arg_is_build {
+                            build_flags.push(arg);
+                            next_arg_is_build = false;
+                        } else if arg.starts_with('-') {
+                            let flag = arg.trim_start_matches('-');
+                            if flag == "args" {
+                                all_args_are_test = true;
+                            } else if let Some(has_arg) = is_debug_flag(flag) {
+                                if flag == "v" || flag == "test.v" {
+                                    seen_v = true;
+                                }
+                                if flag.starts_with("test.") {
+                                    args.push(arg);
+                                } else {
+                                    args.push(format!("-test.{flag}"))
+                                }
+                                next_arg_is_test = has_arg;
+                            } else if let Some(has_arg) = is_build_flag(flag) {
+                                build_flags.push(arg);
+                                next_arg_is_build = has_arg;
+                            }
+                        } else if !seen_pkg {
+                            program = arg;
+                            seen_pkg = true;
                         } else {
-                            args.push(arg.clone());
+                            args.push(arg);
                         }
-                        next_arg_is_test = false;
-                    } else if next_arg_is_build {
-                        build_flags.push(arg.clone());
-                        next_arg_is_build = false;
-                    } else if arg.starts_with('-') {
-                        let flag = arg.trim_start_matches('-');
-                        if flag == "args" {
-                            all_args_are_test = true;
-                        } else if let Some(has_arg) = is_debug_flag(flag) {
-                            if flag == "v" || flag == "test.v" {
-                                seen_v = true;
-                            }
-                            if flag.starts_with("test.") {
-                                args.push(arg.clone());
-                            } else {
-                                args.push(format!("-test.{flag}"))
-                            }
-                            next_arg_is_test = has_arg;
-                        } else if let Some(has_arg) = is_build_flag(flag) {
-                            build_flags.push(arg.clone());
-                            next_arg_is_build = has_arg;
-                        }
-                    } else if !seen_pkg {
-                        program = arg.clone();
-                        seen_pkg = true;
-                    } else {
-                        args.push(arg.clone());
                     }
                 }
                 if !seen_v {

@@ -126,6 +126,46 @@ mod go_locator {
     }
 
     #[gpui::test]
+    async fn test_go_locator_quoted_regex(_: &mut TestAppContext) {
+        let locator = GoLocator;
+        let delve = DebugAdapterName("Delve".into());
+
+        let task = TaskTemplate {
+            label: "test quoted".into(),
+            command: "go".into(),
+            args: vec![
+                "test".to_string(),
+                "-run".to_string(),
+                "'^Test Foo$'".to_string(), // quoted regex
+            ],
+            ..Default::default()
+        };
+        let result = locator
+            .create_scenario(&task, "", &delve)
+            .await
+            .unwrap();
+
+        let config: DelveLaunchRequest = serde_json::from_value(result.config).unwrap();
+
+        assert_eq!(
+            config,
+            DelveLaunchRequest {
+                request: "launch".to_string(),
+                mode: "test".to_string(),
+                program: ".".to_string(),
+                build_flags: vec![],
+                args: vec![
+                    "-test.run".to_string(),
+                    "^Test Foo$".to_string(), // Unquoted regex!
+                    "-test.v".to_string()
+                ],
+                env: Default::default(),
+                cwd: None,
+            }
+        );
+    }
+
+    #[gpui::test]
     async fn test_go_locator_test(_: &mut TestAppContext) {
         let locator = GoLocator;
         let delve = DebugAdapterName("Delve".into());

@@ -24,7 +24,7 @@ use std::{
     },
 };
 use task::{TaskTemplate, TaskTemplates, TaskVariables, VariableName};
-use util::{ResultExt, fs::remove_matching, maybe};
+use util::{ResultExt, fs::remove_matching, maybe, shell::ShellKind};
 
 fn server_binary_arguments() -> Vec<OsString> {
     vec!["-mode=stdio".into()]
@@ -552,6 +552,13 @@ impl ContextProvider for GoContextProvider {
         };
         let module_cwd = Some(GO_MODULE_ROOT_TASK_VARIABLE.template_value());
 
+        let quote_regex = |regex: String| -> String {
+            ShellKind::Posix
+                .try_quote(&regex)
+                .map(|s| s.into_owned())
+                .unwrap_or(regex)
+        };
+
         Task::ready(Some(TaskTemplates(vec![
             TaskTemplate {
                 label: format!(
@@ -565,11 +572,11 @@ impl ContextProvider for GoContextProvider {
                     "test".into(),
                     "-v".into(),
                     "-run".into(),
-                    format!(
-                        "\\^Test{}\\$/\\^{}\\$",
+                    quote_regex(format!(
+                        "^Test{}$/^{}$",
                         GO_SUITE_NAME_TASK_VARIABLE.template_value(),
                         VariableName::Symbol.template_value(),
-                    ),
+                    )),
                 ],
                 cwd: package_cwd.clone(),
                 tags: vec!["go-testify-suite".to_owned()],
@@ -587,11 +594,11 @@ impl ContextProvider for GoContextProvider {
                     "test".into(),
                     "-v".into(),
                     "-run".into(),
-                    format!(
-                        "\\^{}\\$/\\^{}\\$",
+                    quote_regex(format!(
+                        "^{}$/^{}$",
                         VariableName::Symbol.template_value(),
                         GO_TABLE_TEST_CASE_NAME_TASK_VARIABLE.template_value(),
-                    ),
+                    )),
                 ],
                 cwd: package_cwd.clone(),
                 tags: vec![
@@ -610,7 +617,7 @@ impl ContextProvider for GoContextProvider {
                 args: vec![
                     "test".into(),
                     "-run".into(),
-                    format!("\\^{}\\$", VariableName::Symbol.template_value(),),
+                    quote_regex(format!("^{}$", VariableName::Symbol.template_value(),)),
                 ],
                 tags: vec!["go-test".to_owned()],
                 cwd: package_cwd.clone(),
@@ -626,7 +633,7 @@ impl ContextProvider for GoContextProvider {
                 args: vec![
                     "test".into(),
                     "-run".into(),
-                    format!("\\^{}\\$", VariableName::Symbol.template_value(),),
+                    quote_regex(format!("^{}$", VariableName::Symbol.template_value(),)),
                 ],
                 tags: vec!["go-example".to_owned()],
                 cwd: package_cwd.clone(),
@@ -658,11 +665,11 @@ impl ContextProvider for GoContextProvider {
                     "test".into(),
                     "-v".into(),
                     "-run".into(),
-                    format!(
-                        "'^{}$/^{}$'",
+                    quote_regex(format!(
+                        "^{}$/^{}$",
                         VariableName::Symbol.template_value(),
                         GO_SUBTEST_NAME_TASK_VARIABLE.template_value(),
-                    ),
+                    )),
                 ],
                 cwd: package_cwd.clone(),
                 tags: vec!["go-subtest".to_owned()],
@@ -678,9 +685,10 @@ impl ContextProvider for GoContextProvider {
                 args: vec![
                     "test".into(),
                     "-benchmem".into(),
-                    "-run='^$'".into(),
+                    "-run".into(),
+                    quote_regex("^$".to_string()),
                     "-bench".into(),
-                    format!("\\^{}\\$", VariableName::Symbol.template_value()),
+                    quote_regex(format!("^{}$", VariableName::Symbol.template_value())),
                 ],
                 cwd: package_cwd.clone(),
                 tags: vec!["go-benchmark".to_owned()],
@@ -697,7 +705,7 @@ impl ContextProvider for GoContextProvider {
                     "test".into(),
                     "-fuzz=Fuzz".into(),
                     "-run".into(),
-                    format!("\\^{}\\$", VariableName::Symbol.template_value(),),
+                    quote_regex(format!("^{}$", VariableName::Symbol.template_value(),)),
                 ],
                 tags: vec!["go-fuzz".to_owned()],
                 cwd: package_cwd.clone(),

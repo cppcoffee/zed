@@ -44,7 +44,7 @@ use crate::{
     PromptBuilder, PromptButton, PromptHandle, PromptLevel, Render, RenderImage,
     RenderablePromptHandle, Reservation, ScreenCaptureSource, SharedString, SubscriberSet,
     Subscription, SvgRenderer, Task, TextRenderingMode, TextSystem, ThermalState, Window,
-    WindowAppearance, WindowHandle, WindowId, WindowInvalidator,
+    WindowAppearance, WindowBounds, WindowHandle, WindowId, WindowInvalidator,
     colors::{Colors, GlobalColors},
     current_platform, hash, init_app_menus,
 };
@@ -600,6 +600,7 @@ pub struct App {
     pub(crate) globals_by_type: FxHashMap<TypeId, Box<dyn Any>>,
     pub(crate) entities: EntityMap,
     pub(crate) window_update_stack: Vec<WindowId>,
+    pub(crate) updating_window_bounds: FxHashMap<WindowId, WindowBounds>,
     pub(crate) new_entity_observers: SubscriberSet<TypeId, NewEntityListener>,
     pub(crate) windows: SlotMap<WindowId, Option<Box<Window>>>,
     pub(crate) window_handles: FxHashMap<WindowId, AnyWindowHandle>,
@@ -686,6 +687,7 @@ impl App {
                 new_entity_observers: SubscriberSet::new(),
                 windows: SlotMap::with_key(),
                 window_update_stack: Vec::new(),
+                updating_window_bounds: FxHashMap::default(),
                 window_handles: FxHashMap::default(),
                 focus_handles: Arc::new(RwLock::new(SlotMap::with_key())),
                 keymap: Rc::new(RefCell::new(Keymap::default())),
@@ -1495,10 +1497,13 @@ impl App {
 
             let root_view = window.root.clone().unwrap();
 
+            cx.updating_window_bounds
+                .insert(id, window.window_bounds());
             cx.window_update_stack.push(window.handle.id);
             let result = update(root_view, &mut window, cx);
             fn trail(id: WindowId, window: Box<Window>, cx: &mut App) -> Option<()> {
                 cx.window_update_stack.pop();
+                cx.updating_window_bounds.remove(&id);
 
                 if window.removed {
                     cx.window_handles.remove(&id);

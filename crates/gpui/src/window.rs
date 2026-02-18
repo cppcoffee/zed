@@ -59,6 +59,9 @@ mod prompts;
 use crate::util::atomic_incr_if_not_zero;
 pub use prompts::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) const DEFAULT_WINDOW_SIZE: Size<Pixels> = size(px(1536.), px(864.));
 
 /// A 6:5 aspect ratio minimum window size to be used for functional,
@@ -1027,13 +1030,12 @@ pub(crate) struct ElementStateBox {
 }
 
 fn default_bounds(display_id: Option<DisplayId>, cx: &mut App) -> WindowBounds {
-    // TODO, BUG: if you open a window with the currently active window
-    // on the stack, this will erroneously fallback to `None`
-    //
     // TODO these should be the initial window bounds not considering maximized/fullscreen
-    let active_window_bounds = cx
-        .active_window()
-        .and_then(|w| w.update(cx, |_, window, _| window.window_bounds()).ok());
+    let active_window_bounds = cx.active_window().and_then(|w| {
+        w.update(cx, |_, window, _| window.window_bounds())
+            .ok()
+            .or_else(|| cx.updating_window_bounds.get(&w.id).copied())
+    });
 
     const CASCADE_OFFSET: f32 = 25.0;
 

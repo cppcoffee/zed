@@ -953,16 +953,38 @@ impl Loader {
     }
 
     #[cfg(windows)]
-    fn check_external_scanner(&self, _name: &str, _library_path: &Path) -> Result<()> {
-        // TODO: there's no nm command on windows, whoever wants to implement this can and should :)
+    fn check_external_scanner(&self, name: &str, library_path: &Path) -> Result<()> {
+        let library = unsafe { Library::new(library_path) }
+            .with_context(|| format!("Error opening dynamic library {}", library_path.display()))?;
 
-        // let mut must_have = vec![
-        //     format!("tree_sitter_{name}_external_scanner_create"),
-        //     format!("tree_sitter_{name}_external_scanner_destroy"),
-        //     format!("tree_sitter_{name}_external_scanner_serialize"),
-        //     format!("tree_sitter_{name}_external_scanner_deserialize"),
-        //     format!("tree_sitter_{name}_external_scanner_scan"),
-        // ];
+        let must_have = vec![
+            format!("tree_sitter_{name}_external_scanner_create"),
+            format!("tree_sitter_{name}_external_scanner_destroy"),
+            format!("tree_sitter_{name}_external_scanner_serialize"),
+            format!("tree_sitter_{name}_external_scanner_deserialize"),
+            format!("tree_sitter_{name}_external_scanner_scan"),
+        ];
+
+        let mut missing = Vec::new();
+        for symbol in must_have {
+            let exists = unsafe {
+                library.get::<Symbol<*const ()>>(symbol.as_bytes()).is_ok()
+            };
+            if !exists {
+                missing.push(format!("  `{}`", symbol));
+            }
+        }
+
+        if !missing.is_empty() {
+            let missing = missing.join("\n");
+            anyhow::bail!(format!(indoc! {"
+                Missing required functions in the external scanner, parsing won't work without these!
+
+                {missing}
+
+                You can read more about this at https://tree-sitter.github.io/tree-sitter/creating-parsers/4-external-scanners
+            "}));
+        }
 
         Ok(())
     }

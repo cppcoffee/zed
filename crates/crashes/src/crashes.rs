@@ -15,13 +15,12 @@ use std::{
     io,
     panic::{self, PanicHookInfo},
     path::{Path, PathBuf},
-    process::{self},
     sync::{
-        Arc, OnceLock,
         atomic::{AtomicBool, Ordering},
+        Arc, OnceLock,
     },
     thread,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 // set once the crash handler has initialized and the client has connected to it
@@ -30,6 +29,7 @@ pub static CRASH_HANDLER: OnceLock<Arc<Client>> = OnceLock::new();
 pub static REQUESTED_MINIDUMP: AtomicBool = AtomicBool::new(false);
 const CRASH_HANDLER_PING_TIMEOUT: Duration = Duration::from_secs(60);
 const CRASH_HANDLER_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const CRASH_HANDLER_SOCKET_NAME: &str = "zed-crash-handler.sock";
 
 #[cfg(target_os = "macos")]
 static PANIC_THREAD_ID: AtomicU32 = AtomicU32::new(0);
@@ -65,26 +65,74 @@ pub async fn init(crash_init: InitCrashHandler) {
     }
 
     let exe = env::current_exe().expect("unable to find ourselves");
-    let zed_pid = process::id();
-    // TODO: we should be able to get away with using 1 crash-handler process per machine,
-    // but for now we append the PID of the current process which makes it unique per remote
-    // server or interactive zed instance. This solves an issue where occasionally the socket
-    // used by the crash handler isn't destroyed correctly which causes it to stay on the file
-    // system and block further attempts to initialize crash handlers with that socket path.
-    let socket_name = paths::temp_dir().join(format!("zed-crash-handler-{zed_pid}"));
-    #[cfg(not(target_os = "windows"))]
-    let _crash_handler = Command::new(exe)
-        .arg("--crash-handler")
-        .arg(&socket_name)
-        .spawn()
-        .expect("unable to spawn server process");
 
     #[cfg(target_os = "windows")]
-    spawn_crash_handler_windows(&exe, &socket_name);
+    let socket_name = {
+        let zed_pid = std::process::id();
+        let socket_name = paths::temp_dir().join(format!("zed-crash-handler-{zed_pid}"));
+        spawn_crash_handler_windows(&exe, &socket_name);
+        socket_name
+    };
 
-    #[cfg(target_os = "linux")]
-    let server_pid = _crash_handler.id();
-    info!("spawning crash handler process");
+    #[cfg(not(target_os = "windows"))]
+    let (socket_name, server_pid) = {
+        let global_socket = paths::temp_dir().join(CRASH_HANDLER_SOCKET_NAME);
+
+        let mut unique_socket = None;
+        let mut pid = None;
+
+        // Try to connect to existing daemon
+        if let Ok(mut stream) = std::os::unix::net::UnixStream::connect(&global_socket) {
+            use std::io::Read;
+            let mut buf = String::new();
+            if stream.read_to_string(&mut buf).is_ok() && !buf.is_empty() {
+                let parts: Vec<&str> = buf.trim().split('\n').collect();
+                if let Some(path) = parts.get(0) {
+                    unique_socket = Some(PathBuf::from(path));
+                }
+                if let Some(p) = parts.get(1) {
+                    pid = p.parse::<u32>().ok();
+                }
+            }
+        }
+
+        if let Some(path) = unique_socket {
+            (path, pid)
+        } else {
+            // Spawn daemon
+            let _crash_handler = Command::new(exe)
+                .arg("--crash-handler")
+                .arg(&global_socket)
+                .spawn()
+                .expect("unable to spawn server process");
+
+            // Loop until we can connect and get a path
+            let mut result = None;
+            for _ in 0..50 {
+                // 5 seconds timeout
+                if let Ok(mut stream) = std::os::unix::net::UnixStream::connect(&global_socket) {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    if stream.read_to_string(&mut buf).is_ok() && !buf.is_empty() {
+                        let parts: Vec<&str> = buf.trim().split('\n').collect();
+                        if let Some(path) = parts.get(0) {
+                            let mut p = None;
+                            if let Some(pid_str) = parts.get(1) {
+                                p = pid_str.parse::<u32>().ok();
+                            }
+                            result = Some((PathBuf::from(path), p));
+                        }
+                        break;
+                    }
+                }
+                smol::Timer::after(Duration::from_millis(100)).await;
+            }
+
+            result.unwrap_or((global_socket, None))
+        }
+    };
+
+    info!("connecting to crash handler process");
 
     let mut elapsed = Duration::ZERO;
     let retry_frequency = Duration::from_millis(100);
@@ -132,7 +180,9 @@ pub async fn init(crash_init: InitCrashHandler) {
 
     #[cfg(target_os = "linux")]
     {
-        handler.set_ptracer(Some(server_pid));
+        if let Some(pid) = server_pid {
+            handler.set_ptracer(Some(pid));
+        }
     }
     CRASH_HANDLER.set(client.clone()).ok();
     std::mem::forget(handler);
@@ -405,6 +455,16 @@ fn spawn_crash_handler_windows(exe: &Path, socket_name: &Path) {
 }
 
 pub fn crash_server(socket: &Path) {
+    #[cfg(unix)]
+    if socket.ends_with(CRASH_HANDLER_SOCKET_NAME) {
+        run_proxy_server(socket);
+        return;
+    }
+
+    run_minidumper_server(socket);
+}
+
+fn run_minidumper_server(socket: &Path) {
     let Ok(mut server) = minidumper::Server::with_name(socket) else {
         log::info!("Couldn't create socket, there may already be a running crash server");
         return;
@@ -439,4 +499,49 @@ pub fn crash_server(socket: &Path) {
             Some(CRASH_HANDLER_PING_TIMEOUT),
         )
         .expect("failed to run server");
+}
+
+#[cfg(unix)]
+fn run_proxy_server(socket: &Path) {
+    use std::io::Write;
+    use std::os::unix::net::UnixListener;
+
+    if socket.exists() {
+        fs::remove_file(socket).ok();
+    }
+
+    let listener = UnixListener::bind(socket).expect("failed to bind proxy socket");
+
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                thread::spawn(move || {
+                    let pid = std::process::id();
+                    let timestamp = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_nanos();
+                    let unique_name = format!("zed-crash-{}-{}.sock", pid, timestamp);
+                    let unique_path = paths::temp_dir().join(&unique_name);
+
+                    // Send the unique path and PID to the client
+                    let response = format!("{}\n{}", unique_path.to_string_lossy(), pid);
+                    if let Err(e) = stream.write_all(response.as_bytes()) {
+                        log::error!("failed to write unique socket path to client: {}", e);
+                        return;
+                    }
+                    // Close the stream to signal EOF to the client
+                    drop(stream);
+
+                    // Run the minidumper server on this thread
+                    run_minidumper_server(&unique_path);
+
+                    fs::remove_file(&unique_path).ok();
+                });
+            }
+            Err(e) => {
+                log::error!("proxy accept failed: {}", e);
+            }
+        }
+    }
 }

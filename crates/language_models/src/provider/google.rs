@@ -388,13 +388,14 @@ pub fn into_google(
                     }
                 }
                 language_model::MessageContent::Thinking {
-                    text: _,
+                    text,
                     signature: Some(signature),
                 } => {
                     if !signature.is_empty() {
                         vec![Part::ThoughtPart(google_ai::ThoughtPart {
                             thought: true,
                             thought_signature: signature,
+                            text: Some(text),
                         })]
                     } else {
                         vec![]
@@ -506,7 +507,10 @@ pub fn into_google(
             temperature: request.temperature.map(|t| t as f64).or(Some(1.0)),
             thinking_config: match (request.thinking_allowed, mode) {
                 (true, GoogleModelMode::Thinking { budget_tokens }) => {
-                    budget_tokens.map(|thinking_budget| ThinkingConfig { thinking_budget })
+                    budget_tokens.map(|thinking_budget| ThinkingConfig {
+                        thinking_budget,
+                        include_thoughts: Some(true),
+                    })
                 }
                 _ => None,
             },
@@ -652,7 +656,10 @@ impl GoogleEventMapper {
                         Part::FunctionResponsePart(_) => {}
                         Part::ThoughtPart(part) => {
                             events.push(Ok(LanguageModelCompletionEvent::Thinking {
-                                text: "(Encrypted thought)".to_string(), // TODO: Can we populate this from thought summaries?
+                                text: part
+                                    .text
+                                    .clone()
+                                    .unwrap_or_else(|| "(Encrypted thought)".to_string()),
                                 signature: Some(part.thought_signature),
                             }));
                         }

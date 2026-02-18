@@ -199,11 +199,11 @@ pub enum Role {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Part {
+    ThoughtPart(ThoughtPart),
     TextPart(TextPart),
     InlineDataPart(InlineDataPart),
     FunctionCallPart(FunctionCallPart),
     FunctionResponsePart(FunctionResponsePart),
-    ThoughtPart(ThoughtPart),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -246,6 +246,8 @@ pub struct FunctionResponsePart {
 pub struct ThoughtPart {
     pub thought: bool,
     pub thought_signature: String,
+    #[serde(default)]
+    pub text: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -298,6 +300,8 @@ pub struct UsageMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct ThinkingConfig {
     pub thinking_budget: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_thoughts: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -721,5 +725,60 @@ mod tests {
 
         // Empty string should still be serialized (normalization happens at a higher level)
         assert_eq!(serialized["thoughtSignature"], "");
+    }
+
+    #[test]
+    fn test_thought_part_deserializes_correctly_with_text() {
+        let json = json!({
+            "thought": true,
+            "thoughtSignature": "test_sig",
+            "text": "This is a thought summary."
+        });
+
+        let part: Part = serde_json::from_value(json).unwrap();
+
+        match part {
+            Part::ThoughtPart(tp) => {
+                assert!(tp.thought);
+                assert_eq!(tp.thought_signature, "test_sig");
+                assert_eq!(tp.text, Some("This is a thought summary.".to_string()));
+            }
+            _ => panic!("Expected ThoughtPart, got {:?}", part),
+        }
+    }
+
+    #[test]
+    fn test_thought_part_deserializes_correctly_without_text() {
+        let json = json!({
+            "thought": true,
+            "thoughtSignature": "test_sig"
+        });
+
+        let part: Part = serde_json::from_value(json).unwrap();
+
+        match part {
+            Part::ThoughtPart(tp) => {
+                assert!(tp.thought);
+                assert_eq!(tp.thought_signature, "test_sig");
+                assert_eq!(tp.text, None);
+            }
+            _ => panic!("Expected ThoughtPart, got {:?}", part),
+        }
+    }
+
+    #[test]
+    fn test_text_part_deserializes_correctly() {
+        let json = json!({
+            "text": "Just some text."
+        });
+
+        let part: Part = serde_json::from_value(json).unwrap();
+
+        match part {
+            Part::TextPart(tp) => {
+                assert_eq!(tp.text, "Just some text.");
+            }
+            _ => panic!("Expected TextPart, got {:?}", part),
+        }
     }
 }

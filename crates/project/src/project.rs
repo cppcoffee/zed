@@ -6251,3 +6251,66 @@ fn provide_inline_values(
 
     variables
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use language::CodeLabel;
+    use lsp::{CompletionItem, CompletionItemKind, LanguageServerId};
+    use text::Anchor;
+
+    fn test_completion(label: &str, kind: Option<CompletionItemKind>) -> Completion {
+        Completion {
+            replace_range: Anchor::MIN..Anchor::MIN,
+            new_text: String::new(),
+            label: CodeLabel::plain(label.to_string(), None),
+            documentation: None,
+            source: CompletionSource::Lsp {
+                insert_range: None,
+                server_id: LanguageServerId(0),
+                lsp_completion: Box::new(CompletionItem {
+                    label: label.to_string(),
+                    kind,
+                    ..Default::default()
+                }),
+                lsp_defaults: None,
+                resolved: false,
+            },
+            icon_path: None,
+            match_start: None,
+            snippet_deduplication_key: None,
+            insert_text_mode: None,
+            confirm: None,
+        }
+    }
+
+    #[test]
+    fn test_completion_sort_key() {
+        // Keyword -> 0
+        let c = test_completion("keyword", Some(CompletionItemKind::KEYWORD));
+        assert_eq!(c.sort_key(), (0, "keyword"));
+
+        // Variable -> 1
+        let c = test_completion("variable", Some(CompletionItemKind::VARIABLE));
+        assert_eq!(c.sort_key(), (1, "variable"));
+
+        // Constant -> 2
+        let c = test_completion("constant", Some(CompletionItemKind::CONSTANT));
+        assert_eq!(c.sort_key(), (2, "constant"));
+
+        // Property -> 3
+        let c = test_completion("property", Some(CompletionItemKind::PROPERTY));
+        assert_eq!(c.sort_key(), (3, "property"));
+
+        // Others -> 4
+        let c = test_completion("function", Some(CompletionItemKind::FUNCTION));
+        assert_eq!(c.sort_key(), (4, "function"));
+
+        let c = test_completion("class", Some(CompletionItemKind::CLASS));
+        assert_eq!(c.sort_key(), (4, "class"));
+
+        // None -> 4
+        let c = test_completion("none", None);
+        assert_eq!(c.sort_key(), (4, "none"));
+    }
+}

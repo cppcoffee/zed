@@ -105,6 +105,8 @@ pub struct NodeBinarySettings {
     pub npm_path: Option<String>,
     /// If enabled, Zed will download its own copy of Node.
     pub ignore_system_version: bool,
+    /// If enabled, Zed may download and install a managed Node.js copy when needed.
+    pub allow_binary_download: bool,
 }
 
 impl From<settings::NodeBinarySettings> for NodeBinarySettings {
@@ -113,6 +115,7 @@ impl From<settings::NodeBinarySettings> for NodeBinarySettings {
             path: settings.path,
             npm_path: settings.npm_path,
             ignore_system_version: settings.ignore_system_version.unwrap_or(false),
+            allow_binary_download: settings.allow_binary_download.unwrap_or(true),
         }
     }
 }

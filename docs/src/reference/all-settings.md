@@ -2735,6 +2735,7 @@ Positive `integer` values or `null` for unlimited tabs
 {
   "node": {
     "ignore_system_version": false,
+    "allow_binary_download": true,
     "path": null,
     "npm_path": null
   }
@@ -2744,6 +2745,7 @@ Positive `integer` values or `null` for unlimited tabs
 **Options**
 
 - `ignore_system_version`: Whether to ignore the system Node.js version
+- `allow_binary_download`: Whether Zed may download and install a managed Node.js runtime when needed
 - `path`: Custom path to Node.js binary
 - `npm_path`: Custom path to npm binary
 

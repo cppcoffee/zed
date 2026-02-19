@@ -682,6 +682,8 @@ pub struct NodeBinarySettings {
     pub npm_path: Option<String>,
     /// If enabled, Zed will download its own copy of Node.
     pub ignore_system_version: Option<bool>,
+    /// If enabled, Zed may download and install a managed Node.js copy when needed.
+    pub allow_binary_download: Option<bool>,
 }
 
 #[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom)]

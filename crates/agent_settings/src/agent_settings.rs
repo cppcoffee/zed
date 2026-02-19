@@ -187,12 +187,6 @@ impl CompiledRegex {
     }
 
     pub fn is_match(&self, input: &str) -> bool {
-        if self.pattern.starts_with('^') {
-            return self
-                .regex
-                .find(input)
-                .is_some_and(|m| m.start() == 0);
-        }
         self.regex.is_match(input)
     }
 }

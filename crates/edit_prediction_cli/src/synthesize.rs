@@ -6,6 +6,7 @@ use crate::{
 };
 use anthropic::ResponseContent;
 use anyhow::{Context as _, Result};
+use async_fs as fs;
 use chrono::Local;
 use collections::{HashMap, HashSet};
 use edit_prediction::{
@@ -42,20 +43,17 @@ struct RepoState {
 }
 
 impl SynthesizeState {
-    fn load() -> Self {
-        if SYNTHESIZE_STATE_FILE.exists() {
-            std::fs::read_to_string(&*SYNTHESIZE_STATE_FILE)
-                .ok()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default()
-        } else {
-            Self::default()
-        }
+    async fn load() -> Self {
+        fs::read_to_string(&*SYNTHESIZE_STATE_FILE)
+            .await
+            .ok()
+            .and_then(|content| serde_json::from_str(&content).ok())
+            .unwrap_or_default()
     }
 
-    fn save(&self) -> Result<()> {
+    async fn save(&self) -> Result<()> {
         let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(&*SYNTHESIZE_STATE_FILE, content)?;
+        fs::write(&*SYNTHESIZE_STATE_FILE, content).await?;
         Ok(())
     }
 
@@ -101,15 +99,15 @@ pub async fn run_synthesize(config: SynthesizeConfig) -> Result<()> {
     let mut state = if config.fresh {
         SynthesizeState::default()
     } else {
-        SynthesizeState::load()
+        SynthesizeState::load().await
     };
 
-    std::fs::create_dir_all(&config.output_dir)?;
-    std::fs::create_dir_all(&*FAILED_EXAMPLES_DIR)?;
+    fs::create_dir_all(&config.output_dir).await?;
+    fs::create_dir_all(&*FAILED_EXAMPLES_DIR).await?;
 
     // Create "latest_failed" symlink pointing to this run's failed directory
     if LATEST_FAILED_EXAMPLES_DIR.is_symlink() {
-        std::fs::remove_file(&*LATEST_FAILED_EXAMPLES_DIR)?;
+        fs::remove_file(&*LATEST_FAILED_EXAMPLES_DIR).await?;
     }
     #[cfg(unix)]
     std::os::unix::fs::symlink(&*FAILED_EXAMPLES_DIR, &*LATEST_FAILED_EXAMPLES_DIR)?;
@@ -150,7 +148,7 @@ pub async fn run_synthesize(config: SynthesizeConfig) -> Result<()> {
         }
     }
 
-    state.save()?;
+    state.save().await?;
 
     progress.finalize();
 
@@ -237,7 +235,7 @@ async fn synthesize_repo(
                     let timestamp = Local::now().format("%Y-%m-%d--%H-%M-%S");
                     let filename = format!("{}--{}.md", repo_name, timestamp);
                     let path = config.output_dir.join(&filename);
-                    std::fs::write(&path, spec.to_markdown())?;
+                    fs::write(&path, spec.to_markdown()).await?;
                     examples_generated += 1;
                     step_progress.set_info(filename, InfoStyle::Normal);
                 }
@@ -247,7 +245,7 @@ async fn synthesize_repo(
                     let filename = format!("{}--{}.md", repo_name, timestamp);
                     let path = FAILED_EXAMPLES_DIR.join(&filename);
                     let content = format_rejected_example(&claude_response, &rejection_reason);
-                    if let Err(e) = std::fs::write(&path, content) {
+                    if let Err(e) = fs::write(&path, content).await {
                         log::warn!("Failed to write rejected example: {:?}", e);
                     }
                     step_progress.set_info(format!("rejected: {}", filename), InfoStyle::Warning);

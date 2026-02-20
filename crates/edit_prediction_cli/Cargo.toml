@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 anthropic.workspace = true
+async-fs.workspace = true
 http_client.workspace = true
 chrono.workspace = true
 clap = "4"

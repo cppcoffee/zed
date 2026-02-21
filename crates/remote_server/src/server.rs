@@ -879,14 +879,20 @@ pub enum SpawnServerError {
 
 async fn spawn_server(paths: &ServerPaths) -> Result<(), SpawnServerError> {
     log::info!("spawning server process",);
-    if paths.stdin_socket.exists() {
-        std::fs::remove_file(&paths.stdin_socket).map_err(SpawnServerError::RemoveStdinSocket)?;
+    if smol::fs::metadata(&paths.stdin_socket).await.is_ok() {
+        smol::fs::remove_file(&paths.stdin_socket)
+            .await
+            .map_err(SpawnServerError::RemoveStdinSocket)?;
     }
-    if paths.stdout_socket.exists() {
-        std::fs::remove_file(&paths.stdout_socket).map_err(SpawnServerError::RemoveStdoutSocket)?;
+    if smol::fs::metadata(&paths.stdout_socket).await.is_ok() {
+        smol::fs::remove_file(&paths.stdout_socket)
+            .await
+            .map_err(SpawnServerError::RemoveStdoutSocket)?;
     }
-    if paths.stderr_socket.exists() {
-        std::fs::remove_file(&paths.stderr_socket).map_err(SpawnServerError::RemoveStderrSocket)?;
+    if smol::fs::metadata(&paths.stderr_socket).await.is_ok() {
+        smol::fs::remove_file(&paths.stderr_socket)
+            .await
+            .map_err(SpawnServerError::RemoveStderrSocket)?;
     }
 
     let binary_name = std::env::current_exe().map_err(SpawnServerError::CurrentExe)?;
@@ -903,12 +909,12 @@ async fn spawn_server(paths: &ServerPaths) -> Result<(), SpawnServerError> {
 
     let mut total_time_waited = std::time::Duration::from_secs(0);
     let wait_duration = std::time::Duration::from_millis(20);
-    while !paths.stdout_socket.exists()
-        || !paths.stdin_socket.exists()
-        || !paths.stderr_socket.exists()
+    while smol::fs::metadata(&paths.stdout_socket).await.is_err()
+        || smol::fs::metadata(&paths.stdin_socket).await.is_err()
+        || smol::fs::metadata(&paths.stderr_socket).await.is_err()
     {
         log::debug!("waiting for server to be ready to accept connections...");
-        std::thread::sleep(wait_duration);
+        smol::Timer::after(wait_duration).await;
         total_time_waited += wait_duration;
         if total_time_waited > std::time::Duration::from_secs(10) {
             return Err(SpawnServerError::Timeout);

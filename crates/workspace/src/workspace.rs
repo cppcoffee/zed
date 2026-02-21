@@ -1749,8 +1749,13 @@ impl Workspace {
                 }
             }
 
-            let serialized_workspace =
-                persistence::DB.workspace_for_roots(paths_to_open.as_slice());
+            let serialized_workspace = cx
+                .background_executor()
+                .spawn({
+                    let paths_to_open = paths_to_open.clone();
+                    async move { persistence::DB.workspace_for_roots(paths_to_open.as_slice()) }
+                })
+                .await;
 
             if let Some(paths) = serialized_workspace.as_ref().map(|ws| &ws.paths) {
                 paths_to_open = paths.ordered_paths().cloned().collect();
@@ -1782,10 +1787,16 @@ impl Workspace {
             let workspace_id = if let Some(serialized_workspace) = serialized_workspace.as_ref() {
                 serialized_workspace.id
             } else {
-                DB.next_id().await.unwrap_or_else(|_| Default::default())
+                cx.background_executor()
+                    .spawn(async { DB.next_id().await })
+                    .await
+                    .unwrap_or_else(|_| Default::default())
             };
 
-            let toolchains = DB.toolchains(workspace_id).await?;
+            let toolchains = cx
+                .background_executor()
+                .spawn(async move { DB.toolchains(workspace_id).await })
+                .await?;
 
             for (toolchain, worktree_path, path) in toolchains {
                 let toolchain_path = PathBuf::from(toolchain.path.clone().to_string());

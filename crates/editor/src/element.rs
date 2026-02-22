@@ -3735,6 +3735,7 @@ impl EditorElement {
     }
 
     fn layout_lines(
+        editor: &mut Editor,
         rows: Range<DisplayRow>,
         snapshot: &EditorSnapshot,
         style: &EditorStyle,
@@ -3788,21 +3789,55 @@ impl EditorElement {
                 })
                 .collect()
         } else {
-            let use_tree_sitter = !snapshot.semantic_tokens_enabled
-                || snapshot.use_tree_sitter_for_syntax(rows.start, cx);
-            let chunks = snapshot.highlighted_chunks(rows.clone(), use_tree_sitter, style);
-            LineWithInvisibles::from_chunks(
-                chunks,
-                style,
-                MAX_LINE_LEN,
-                rows.len(),
-                &snapshot.mode,
-                editor_width,
-                is_row_soft_wrapped,
-                bg_segments_per_row,
-                window,
-                cx,
-            )
+            use std::hash::{Hash, Hasher};
+            let mut hasher = collections::FxHasher::default();
+            snapshot.buffer_snapshot().version().hash(&mut hasher);
+            let version = hasher.finish() as usize;
+
+            let mut lines = Vec::with_capacity(rows.len());
+            for (i, row) in (rows.start.0..rows.end.0).enumerate() {
+                let row = DisplayRow(row);
+                let has_selection = !bg_segments_per_row.get(i).map_or(true, |v| v.is_empty());
+
+                if !has_selection {
+                    let key = super::LayoutCacheKey {
+                        row,
+                        version,
+                    };
+                    if let Some(line) = editor.layout_cache.get(&key) {
+                        if let Some(cloned) = line.clone_if_cacheable() {
+                            lines.push(cloned);
+                            continue;
+                        }
+                    }
+                }
+
+                let line_closure = |ix| is_row_soft_wrapped(i + ix);
+                let line = layout_line(
+                    row,
+                    snapshot,
+                    style,
+                    editor_width,
+                    line_closure,
+                    window,
+                    cx,
+                );
+
+                if !has_selection {
+                    if let Some(clonable) = line.clone_if_cacheable() {
+                        let key = super::LayoutCacheKey {
+                            row,
+                            version,
+                        };
+                        if editor.layout_cache.len() > 5000 {
+                            editor.layout_cache.clear();
+                        }
+                        editor.layout_cache.insert(key, Arc::new(clonable));
+                    }
+                }
+                lines.push(line);
+            }
+            lines
         }
     }
 
@@ -8628,6 +8663,15 @@ enum LineFragment {
     },
 }
 
+impl LineFragment {
+    fn clone_if_cacheable(&self) -> Option<Self> {
+        match self {
+            LineFragment::Text(shaped_line) => Some(LineFragment::Text(shaped_line.clone())),
+            LineFragment::Element { .. } => None,
+        }
+    }
+}
+
 impl fmt::Debug for LineFragment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -8642,6 +8686,20 @@ impl fmt::Debug for LineFragment {
 }
 
 impl LineWithInvisibles {
+    fn clone_if_cacheable(&self) -> Option<Self> {
+        let mut fragments = SmallVec::with_capacity(self.fragments.len());
+        for fragment in &self.fragments {
+            fragments.push(fragment.clone_if_cacheable()?);
+        }
+        Some(Self {
+            fragments,
+            invisibles: self.invisibles.clone(),
+            len: self.len,
+            width: self.width,
+            font_size: self.font_size,
+        })
+    }
+
     fn from_chunks<'a>(
         chunks: impl Iterator<Item = HighlightedChunk<'a>>,
         editor_style: &EditorStyle,
@@ -10100,16 +10158,19 @@ impl Element for EditorElement {
                         self.style.background,
                     );
 
-                    let mut line_layouts = Self::layout_lines(
-                        start_row..end_row,
-                        &snapshot,
-                        &self.style,
-                        editor_width,
-                        is_row_soft_wrapped,
-                        &bg_segments_per_row,
-                        window,
-                        cx,
-                    );
+                    let mut line_layouts = self.editor.update(cx, |editor, cx| {
+                        Self::layout_lines(
+                            editor,
+                            start_row..end_row,
+                            &snapshot,
+                            &self.style,
+                            editor_width,
+                            is_row_soft_wrapped,
+                            &bg_segments_per_row,
+                            window,
+                            cx,
+                        )
+                    });
                     let new_renderer_widths = (!is_minimap).then(|| {
                         line_layouts
                             .iter()

@@ -269,6 +269,12 @@ pub type RenderDiffHunkControlsFn = Arc<
     ) -> AnyElement,
 >;
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub(crate) struct LayoutCacheKey {
+    pub(crate) row: DisplayRow,
+    pub(crate) version: usize,
+}
+
 enum ReportEditorEvent {
     Saved { auto_saved: bool },
     EditorOpened,
@@ -1355,6 +1361,7 @@ pub struct Editor {
     outline_symbols_at_cursor: Option<(BufferId, Vec<OutlineItem<Anchor>>)>,
     sticky_headers_task: Task<()>,
     sticky_headers: Option<Vec<OutlineItem<Anchor>>>,
+    pub(crate) layout_cache: HashMap<LayoutCacheKey, Arc<LineWithInvisibles>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -2606,6 +2613,7 @@ impl Editor {
             outline_symbols_at_cursor: None,
             sticky_headers_task: Task::ready(()),
             sticky_headers: None,
+            layout_cache: HashMap::default(),
         };
 
         if is_minimap {
@@ -2666,6 +2674,7 @@ impl Editor {
                     editor.refresh_sticky_headers(&editor.snapshot(window, cx), cx);
                 }
                 EditorEvent::Edited { .. } => {
+                    editor.layout_cache.clear();
                     let vim_mode = vim_mode_setting::VimModeSetting::try_get(cx)
                         .map(|vim_mode| vim_mode.0)
                         .unwrap_or(false);
@@ -3700,6 +3709,7 @@ impl Editor {
     }
 
     fn folds_did_change(&mut self, cx: &mut Context<Self>) {
+        self.layout_cache.clear();
         use text::ToOffset as _;
         use text::ToPoint as _;
 
@@ -24233,6 +24243,7 @@ impl Editor {
     }
 
     fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.layout_cache.clear();
         let new_language_settings = self.fetch_applicable_language_settings(cx);
         let language_settings_changed = new_language_settings != self.applicable_language_settings;
         self.applicable_language_settings = new_language_settings;
@@ -24354,6 +24365,7 @@ impl Editor {
     }
 
     fn theme_changed(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.layout_cache.clear();
         if !self.mode.is_full() {
             return;
         }

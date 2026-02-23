@@ -4,16 +4,16 @@ use client::UserStore;
 use collections::HashMap;
 use component::{ComponentId, ComponentMetadata, ComponentStatus, components};
 use gpui::{
-    App, Entity, EventEmitter, FocusHandle, Focusable, Task, WeakEntity, Window, list, prelude::*,
+    App, Entity, EventEmitter, FocusHandle, Focusable, ListState, ScrollHandle, ScrollStrategy,
+    Subscription, Task, UniformListScrollHandle, WeakEntity, Window, list, prelude::*,
 };
-use gpui::{ListState, ScrollHandle, ScrollStrategy, UniformListScrollHandle};
 use language::LanguageRegistry;
 use notifications::status_toast::{StatusToast, ToastIcon};
 use persistence::COMPONENT_PREVIEW_DB;
 use project::Project;
 use std::{iter::Iterator, ops::Range, sync::Arc};
 use ui::{ButtonLike, Divider, HighlightedLabel, ListItem, ListSubHeader, Tooltip, prelude::*};
-use ui_input::InputField;
+use ui_input::{ErasedEditorEvent, InputField};
 use workspace::AppState;
 use workspace::{
     Item, ItemId, SerializableItem, Workspace, WorkspaceId, delete_unloaded_items, item::ItemEvent,
@@ -105,6 +105,7 @@ pub struct ComponentPreview {
     workspace: WeakEntity<Workspace>,
     workspace_id: Option<WorkspaceId>,
     _view_scroll_handle: ScrollHandle,
+    _filter_subscription: Subscription,
 }
 
 impl ComponentPreview {
@@ -123,6 +124,24 @@ impl ComponentPreview {
         let selected_index = selected_index.into().unwrap_or(0);
         let active_page = active_page.unwrap_or(PreviewPage::AllComponents);
         let filter_editor = cx.new(|cx| InputField::new(window, cx, "Find components or usages…"));
+
+        let weak_view = cx.entity().downgrade();
+        let filter_subscription = filter_editor.update(cx, |input, cx| {
+            let editor = input.editor().clone();
+            editor.subscribe(
+                Box::new(move |event, _window, cx| {
+                    if event == ErasedEditorEvent::BufferEdited {
+                        weak_view
+                            .update(cx, |this, cx| {
+                                this.on_filter_change(cx);
+                            })
+                            .ok();
+                    }
+                }),
+                window,
+                cx,
+            )
+        });
 
         let component_list = ListState::new(
             sorted_components.len(),
@@ -148,6 +167,7 @@ impl ComponentPreview {
             workspace,
             workspace_id: None,
             _view_scroll_handle: ScrollHandle::new(),
+            _filter_subscription: filter_subscription,
         };
 
         if component_preview.cursor_index > 0 {
@@ -320,6 +340,21 @@ impl ComponentPreview {
         }
 
         entries
+    }
+
+    fn on_filter_change(&mut self, cx: &mut Context<Self>) {
+        let current_filter = self.filter_editor.update(cx, |input, cx| {
+            if input.is_empty(cx) {
+                String::new()
+            } else {
+                input.text(cx)
+            }
+        });
+
+        if current_filter != self.filter_text {
+            self.filter_text = current_filter;
+            self.update_component_list(cx);
+        }
     }
 
     fn update_component_list(&mut self, cx: &mut Context<Self>) {
@@ -574,19 +609,6 @@ impl ComponentPreview {
 
 impl Render for ComponentPreview {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // TODO: move this into the struct
-        let current_filter = self.filter_editor.update(cx, |input, cx| {
-            if input.is_empty(cx) {
-                String::new()
-            } else {
-                input.text(cx)
-            }
-        });
-
-        if current_filter != self.filter_text {
-            self.filter_text = current_filter;
-            self.update_component_list(cx);
-        }
         let sidebar_entries = self.scope_ordered_entries();
         let active_page = self.active_page.clone();
 

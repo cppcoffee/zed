@@ -241,7 +241,7 @@ impl NotebookEditor {
             cell_order: cell_order.clone(),
             original_cell_order: cell_order.clone(),
             cell_map: cell_map.clone(),
-            kernel: Kernel::Shutdown, // TODO: use recommended kernel after the implementation is done in repl
+            kernel: Kernel::Shutdown,
             kernel_specification: None,
             execution_requests: HashMap::default(),
             kernel_picker_handle: PopoverMenuHandle::default(),
@@ -348,29 +348,67 @@ impl NotebookEditor {
     }
 
     fn launch_kernel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // use default Python kernel if no specification is set
-        let spec = self.kernel_specification.clone().unwrap_or_else(|| {
-            KernelSpecification::Jupyter(LocalKernelSpecification {
-                name: "python3".to_string(),
-                path: PathBuf::from("python3"),
-                kernelspec: JupyterKernelspec {
-                    argv: vec![
-                        "python3".to_string(),
-                        "-m".to_string(),
-                        "ipykernel_launcher".to_string(),
-                        "-f".to_string(),
-                        "{connection_file}".to_string(),
-                    ],
-                    display_name: "Python 3".to_string(),
-                    language: "python".to_string(),
-                    interrupt_mode: None,
-                    metadata: None,
-                    env: None,
-                },
-            })
+        if let Some(spec) = self.kernel_specification.clone() {
+            self.launch_kernel_with_spec(spec, window, cx);
+            return;
+        }
+
+        let notebook_language_task = self.notebook_language.clone();
+        let worktree_id = self.worktree_id;
+        let project = self.project.clone();
+
+        let task = cx.spawn(async move |this, cx| {
+            let result = async {
+                let language = notebook_language_task.await;
+                let repl_store = cx.update(|cx| ReplStore::global(cx))?;
+
+                if let Some(refresh_task) = repl_store
+                    .update(cx, |store, cx| {
+                        store.refresh_python_kernelspecs(worktree_id, &project, cx)
+                    })
+                    .ok()
+                {
+                    refresh_task.await.ok();
+                }
+
+                this.update_in(cx, |editor, window, cx| {
+                    let store = repl_store.read(cx);
+                    let spec = store
+                        .active_kernelspec(worktree_id, language, cx)
+                        .unwrap_or_else(|| {
+                            KernelSpecification::Jupyter(LocalKernelSpecification {
+                                name: "python3".to_string(),
+                                path: PathBuf::from("python3"),
+                                kernelspec: JupyterKernelspec {
+                                    argv: vec![
+                                        "python3".to_string(),
+                                        "-m".to_string(),
+                                        "ipykernel_launcher".to_string(),
+                                        "-f".to_string(),
+                                        "{connection_file}".to_string(),
+                                    ],
+                                    display_name: "Python 3".to_string(),
+                                    language: "python".to_string(),
+                                    interrupt_mode: None,
+                                    metadata: None,
+                                    env: None,
+                                },
+                            })
+                        });
+
+                    editor.launch_kernel_with_spec(spec, window, cx);
+                })?;
+                anyhow::Ok(())
+            }
+            .await;
+
+            if let Err(e) = result {
+                log::error!("Failed to select/launch kernel: {:?}", e);
+            }
         });
 
-        self.launch_kernel_with_spec(spec, window, cx);
+        self.kernel = Kernel::StartingKernel(task.map(|_| ()).shared());
+        cx.notify();
     }
 
     fn launch_kernel_with_spec(

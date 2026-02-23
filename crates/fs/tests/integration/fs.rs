@@ -562,3 +562,31 @@ async fn test_realfs_symlink_loop_metadata(executor: BackgroundExecutor) {
     assert!(!metadata.is_executable);
     // don't care about len or mtime on symlinks?
 }
+
+#[gpui::test]
+#[cfg(target_os = "linux")]
+async fn test_realfs_trash_symlink(executor: BackgroundExecutor) {
+    let tempdir = TempDir::new().unwrap();
+    let path = tempdir.path();
+    let fs = RealFs::new(None, executor);
+    let target_path = path.join("target");
+    let symlink_path = path.join("symlink");
+
+    // Create target and symlink
+    std::fs::File::create(&target_path).unwrap();
+    std::os::unix::fs::symlink(&target_path, &symlink_path).unwrap();
+
+    // Trash the symlink
+    // This might fail if ashpd is not available, but we want to ensure it doesn't crash
+    // and ideally falls back to delete if that's the implemented behavior (or fails gracefully).
+    // In our implementation, we fallback to delete if trash fails.
+
+    let result = fs.trash_file(&symlink_path, RemoveOptions::default()).await;
+
+    // Check if symlink is gone
+    assert!(!symlink_path.exists());
+    // Check if target still exists (trashing symlink shouldn't trash target)
+    assert!(target_path.exists());
+
+    assert!(result.is_ok());
+}

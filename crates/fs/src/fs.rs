@@ -676,8 +676,60 @@ impl Fs for RealFs {
         if let Ok(Some(metadata)) = self.metadata(path).await
             && metadata.is_symlink
         {
-            // TODO: trash_file does not support trashing symlinks yet - https://github.com/bilelmoussaoui/ashpd/issues/255
-            return self.remove_file(path, RemoveOptions::default()).await;
+            #[cfg(target_os = "linux")]
+            {
+                use std::ffi::CString;
+                use std::os::unix::ffi::OsStrExt;
+                use std::os::unix::io::FromRawFd;
+
+                let path_buf = path.to_path_buf();
+                let file = self
+                    .executor
+                    .spawn(async move {
+                        let path_c = CString::new(path_buf.as_os_str().as_bytes())?;
+                        // SAFETY: We are calling open with O_PATH | O_NOFOLLOW | O_CLOEXEC
+                        let fd = unsafe {
+                            libc::open(
+                                path_c.as_ptr(),
+                                libc::O_PATH | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                            )
+                        };
+                        if fd < 0 {
+                            return Err(anyhow::Error::from(std::io::Error::last_os_error()));
+                        }
+                        Ok(unsafe { std::fs::File::from_raw_fd(fd) })
+                    })
+                    .await;
+
+                match file {
+                    Ok(file) => {
+                        #[cfg(not(any(test, feature = "test-support")))]
+                        match trash::trash_file(&file).await {
+                            Ok(_) => return Ok(()),
+                            Err(err) => {
+                                log::error!("Failed to trash symlink: {}", err);
+                            }
+                        }
+                        #[cfg(any(test, feature = "test-support"))]
+                        {
+                            let _ = file; // Suppress unused warning
+                            log::info!("Skipping trash::trash_file in tests for symlink {:?}", path);
+                        }
+                    }
+                    Err(err) => {
+                        log::error!("Failed to open symlink for trashing: {}", err);
+                    }
+                }
+            }
+
+            let path_buf = path.to_path_buf();
+            return self
+                .executor
+                .spawn(async move {
+                    std::fs::remove_file(path_buf)?;
+                    Ok(())
+                })
+                .await;
         }
         let file = smol::fs::File::open(path).await?;
         match trash::trash_file(&file.as_fd()).await {

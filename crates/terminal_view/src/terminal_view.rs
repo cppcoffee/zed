@@ -977,7 +977,10 @@ fn subscribe_for_terminal_events(
     window: &mut Window,
     cx: &mut Context<TerminalView>,
 ) -> Vec<Subscription> {
-    let terminal_subscription = cx.observe(terminal, |_, _, cx| cx.notify());
+    let terminal_subscription = cx.observe(terminal, |view, terminal, cx| {
+        view.scroll_handle.update(terminal.read(cx));
+        cx.notify();
+    });
     let mut previous_cwd = None;
     let terminal_events_subscription = cx.subscribe_in(
         terminal,
@@ -1184,17 +1187,17 @@ impl TerminalView {
 
 impl Render for TerminalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // TODO: this should be moved out of render
-        self.scroll_handle.update(self.terminal.read(cx));
-
         if let Some(new_display_offset) = self.scroll_handle.future_display_offset.take() {
-            self.terminal.update(cx, |term, _| {
-                let delta = new_display_offset as i32 - term.last_content.display_offset as i32;
-                match delta.cmp(&0) {
-                    cmp::Ordering::Greater => term.scroll_up_by(delta as usize),
-                    cmp::Ordering::Less => term.scroll_down_by(-delta as usize),
-                    cmp::Ordering::Equal => {}
-                }
+            let terminal = self.terminal.clone();
+            cx.defer(move |cx| {
+                terminal.update(cx, |term, _| {
+                    let delta = new_display_offset as i32 - term.last_content.display_offset as i32;
+                    match delta.cmp(&0) {
+                        cmp::Ordering::Greater => term.scroll_up_by(delta as usize),
+                        cmp::Ordering::Less => term.scroll_down_by(-delta as usize),
+                        cmp::Ordering::Equal => {}
+                    }
+                });
             });
         }
 

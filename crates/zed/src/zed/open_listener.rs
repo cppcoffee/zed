@@ -127,8 +127,11 @@ impl OpenRequest {
             } else if url == "zed://settings" || url == "zed://settings/" {
                 this.kind = Some(OpenRequestKind::Setting { setting_path: None });
             } else if let Some(setting_path) = url.strip_prefix("zed://settings/") {
+                let setting_path = urlencoding::decode(setting_path)
+                    .map(|s| s.into_owned())
+                    .unwrap_or_else(|_| setting_path.to_string());
                 this.kind = Some(OpenRequestKind::Setting {
-                    setting_path: Some(setting_path.to_string()),
+                    setting_path: Some(setting_path),
                 });
             } else if let Some(clone_path) = url.strip_prefix("zed://git/clone") {
                 this.parse_git_clone_url(clone_path)?

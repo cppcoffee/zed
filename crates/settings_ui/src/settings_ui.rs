@@ -116,7 +116,7 @@ struct SettingField<T: 'static> {
     /// `terminal.working_directory$`. This is to distinguish the discrimminant
     /// setting (i.e. the setting that changes whether the value is a string or
     /// an object) from the setting in the case that it is a string.
-    /// - language-specific settings begin `languages.$(language)`. Links
+    /// - language-specific settings begin `languages[language]`. Links
     /// targeting these settings should take the form `languages/Rust/...`, for
     /// example, but are not currently supported.
     json_path: Option<&'static str>,
@@ -578,7 +578,7 @@ pub fn open_settings_editor(
         window: &mut Window,
         cx: &mut Context<SettingsWindow>,
     ) {
-        if path.starts_with("languages.$(language)") {
+        if path.starts_with("languages[language]") {
             log::error!("language-specific settings links are not currently supported");
             return;
         }
@@ -1263,7 +1263,10 @@ fn render_settings_item_link(
                 .tooltip(Tooltip::text("Copy Link"))
                 .when_some(json_path, |this, path| {
                     this.on_click(cx.listener(move |_, _, _, cx| {
-                        let link = format!("zed://settings/{}", path);
+                        let link = format!(
+                            "zed://settings/{}",
+                            path.replace('[', "%5B").replace(']', "%5D")
+                        );
                         cx.write_to_clipboard(ClipboardItem::new_string(link));
                         cx.notify();
                     }))

@@ -1049,10 +1049,10 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut 
                 });
             }
             OpenRequestKind::Setting { setting_path } => {
-                // zed://settings/languages/$(language)/tab_size  - DONT SUPPORT
+                // zed://settings/languages/[language]/tab_size  - DONT SUPPORT
                 // zed://settings/languages/Rust/tab_size  - SUPPORT
-                // languages.$(language).tab_size
-                // [ languages $(language) tab_size]
+                // languages[language].tab_size
+                // [ languages [language] tab_size]
                 cx.spawn(async move |cx| {
                     let workspace =
                         workspace::get_any_active_multi_workspace(app_state, cx.clone()).await?;

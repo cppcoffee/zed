@@ -33,7 +33,6 @@ pub fn meta_with_tool_name(tool_name: &str) -> acp::Meta {
 use collections::HashSet;
 pub use connection::*;
 pub use diff::*;
-use language::language_settings::FormatOnSave;
 pub use mention::*;
 use project::lsp_store::{FormatTrigger, LspFormatTarget};
 use serde::{Deserialize, Serialize};
@@ -2367,7 +2366,7 @@ impl AcpThread {
                         cx,
                     );
 
-                    settings.format_on_save != FormatOnSave::Off
+                    settings.format_on_save
                 });
                 action_log.update(cx, |action_log, cx| {
                     action_log.buffer_edited(buffer.clone(), cx);

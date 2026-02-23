@@ -13,7 +13,7 @@ use collections::HashSet;
 use futures::{FutureExt as _, StreamExt as _};
 use gpui::{App, AppContext, AsyncApp, Entity, Task, WeakEntity};
 use indoc::formatdoc;
-use language::language_settings::{self, FormatOnSave};
+use language::language_settings;
 use language::{LanguageRegistry, ToPoint};
 use language_model::LanguageModelToolResultContent;
 use project::lsp_store::{FormatTrigger, LspFormatTarget};
@@ -430,7 +430,7 @@ impl AgentTool for EditFileTool {
                         buffer.file(),
                         cx,
                     );
-                    settings.format_on_save != FormatOnSave::Off
+                    settings.format_on_save
                 });
 
                 if format_on_save_enabled {
@@ -855,7 +855,7 @@ mod tests {
         cx.update(|cx| {
             SettingsStore::update_global(cx, |store, cx| {
                 store.update_user_settings(cx, |settings| {
-                    settings.project.all_languages.defaults.format_on_save = Some(FormatOnSave::On);
+                    settings.project.all_languages.defaults.format_on_save = Some(true);
                     settings.project.all_languages.defaults.formatter =
                         Some(language::language_settings::FormatterList::default());
                 });
@@ -915,8 +915,7 @@ mod tests {
         cx.update(|cx| {
             SettingsStore::update_global(cx, |store, cx| {
                 store.update_user_settings(cx, |settings| {
-                    settings.project.all_languages.defaults.format_on_save =
-                        Some(FormatOnSave::Off);
+                    settings.project.all_languages.defaults.format_on_save = Some(false);
                 });
             });
         });

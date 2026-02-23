@@ -493,7 +493,7 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::ProjectPanelEntrySpacing>(render_dropdown)
         .add_basic_renderer::<settings::ProjectPanelSortMode>(render_dropdown)
         .add_basic_renderer::<settings::RewrapBehavior>(render_dropdown)
-        .add_basic_renderer::<settings::FormatOnSave>(render_dropdown)
+        .add_basic_renderer::<Option<bool>>(render_format_on_save)
         .add_basic_renderer::<settings::IndentGuideColoring>(render_dropdown)
         .add_basic_renderer::<settings::IndentGuideBackgroundColoring>(render_dropdown)
         .add_basic_renderer::<settings::FileFinderWidthContent>(render_dropdown)
@@ -4120,6 +4120,44 @@ fn render_editable_number_field<T: NumberFieldType + Send + Sync>(
             }
         })
         .into_any_element()
+}
+
+fn render_format_on_save(
+    field: SettingField<Option<bool>>,
+    file: SettingsUiFile,
+    _metadata: Option<&SettingsFieldMetadata>,
+    _window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    let (_, value) = SettingsStore::global(cx).get_value_from_file(file.to_settings(), field.pick);
+    let current_value = value.copied().flatten().or(Some(true));
+
+    const VARIANTS: &[Option<bool>] = &[Some(true), Some(false)];
+    const LABELS: &[&str] = &["On", "Off"];
+
+    EnumVariantDropdown::new(
+        "format_on_save_dropdown",
+        current_value,
+        VARIANTS,
+        LABELS,
+        move |value, window, cx| {
+            if value == current_value {
+                return;
+            }
+            update_settings_file(
+                file.clone(),
+                field.json_path,
+                window,
+                cx,
+                move |settings, _cx| {
+                    (field.write)(settings, Some(value));
+                },
+            )
+            .log_err();
+        },
+    )
+    .tab_index(0)
+    .into_any_element()
 }
 
 fn render_dropdown<T>(

@@ -12,7 +12,7 @@ use collections::HashSet;
 use futures::FutureExt as _;
 use gpui::{App, AppContext, AsyncApp, Entity, Task, WeakEntity};
 use language::LanguageRegistry;
-use language::language_settings::{self, FormatOnSave};
+use language::language_settings;
 use language_model::LanguageModelToolResultContent;
 use project::lsp_store::{FormatTrigger, LspFormatTarget};
 use project::{Project, ProjectPath};
@@ -417,7 +417,7 @@ impl AgentTool for StreamingEditFileTool {
                         buffer.file(),
                         cx,
                     );
-                    settings.format_on_save != FormatOnSave::Off
+                    settings.format_on_save
                 });
 
                 if format_on_save_enabled {

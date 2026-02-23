@@ -9,7 +9,7 @@ use ui::{
 #[derive(IntoElement)]
 pub struct EnumVariantDropdown<T>
 where
-    T: strum::VariantArray + strum::VariantNames + Copy + PartialEq + Send + Sync + 'static,
+    T: Copy + PartialEq + Send + Sync + 'static,
 {
     id: ElementId,
     current_value: T,
@@ -22,7 +22,7 @@ where
 
 impl<T> EnumVariantDropdown<T>
 where
-    T: strum::VariantArray + strum::VariantNames + Copy + PartialEq + Send + Sync + 'static,
+    T: Copy + PartialEq + Send + Sync + 'static,
 {
     pub fn new(
         id: impl Into<ElementId>,
@@ -55,7 +55,7 @@ where
 
 impl<T> RenderOnce for EnumVariantDropdown<T>
 where
-    T: strum::VariantArray + strum::VariantNames + Copy + PartialEq + Send + Sync + 'static,
+    T: Copy + PartialEq + Send + Sync + 'static,
 {
     fn render(self, window: &mut ui::Window, cx: &mut ui::App) -> impl gpui::IntoElement {
         let current_value_label = self.labels[self

@@ -1,4 +1,6 @@
-use serde::Serializer;
+use serde::{Deserializer, Serializer};
+use serde::de::Visitor;
+use std::fmt;
 
 /// Serializes an f32 value with 2 decimal places of precision.
 ///
@@ -88,6 +90,68 @@ where
         }
         None => serializer.serialize_none(),
     }
+}
+
+pub fn deserialize_format_on_save<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct FormatOnSaveVisitor;
+
+    impl<'de> Visitor<'de> for FormatOnSaveVisitor {
+        type Value = Option<bool>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a boolean or \"on\"/\"off\"")
+        }
+
+        fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(Some(v))
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            match v {
+                "on" => Ok(Some(true)),
+                "off" => Ok(Some(false)),
+                _ => {
+                    crate::fallible_options::record_error(anyhow::anyhow!(
+                        "invalid value: {}, expected \"on\" or \"off\"",
+                        v
+                    ));
+                    Ok(None)
+                }
+            }
+        }
+
+        fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            deserializer.deserialize_any(self)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+             Ok(None)
+        }
+    }
+
+    deserializer.deserialize_option(FormatOnSaveVisitor)
 }
 
 #[cfg(test)]

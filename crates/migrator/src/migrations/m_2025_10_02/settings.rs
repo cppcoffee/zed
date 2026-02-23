@@ -14,9 +14,12 @@ fn remove_formatters_on_save_inner(value: &mut Value, path: &[&str]) -> Result<(
     let Some(format_on_save) = obj.get("format_on_save").cloned() else {
         return Ok(());
     };
-    let is_format_on_save_set_to_formatter = format_on_save
-        .as_str()
-        .map_or(true, |s| s != "on" && s != "off");
+    let is_format_on_save_set_to_formatter = if let Some(s) = format_on_save.as_str() {
+        s != "on" && s != "off"
+    } else {
+        !format_on_save.is_boolean()
+    };
+
     if !is_format_on_save_set_to_formatter {
         return Ok(());
     }
@@ -34,7 +37,7 @@ fn remove_formatters_on_save_inner(value: &mut Value, path: &[&str]) -> Result<(
         fmt_path(path, "formatter")
     );
 
-    obj.insert("format_on_save".to_string(), serde_json::json!("on"));
+    obj.insert("format_on_save".to_string(), serde_json::json!(true));
     obj.insert("formatter".to_string(), format_on_save);
 
     Ok(())

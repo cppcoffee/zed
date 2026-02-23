@@ -8,6 +8,14 @@ thread_local! {
     static ERRORS: RefCell<Option<Vec<anyhow::Error>>> = const { RefCell::new(None) };
 }
 
+pub fn record_error(e: anyhow::Error) {
+    ERRORS.with_borrow_mut(|errors| {
+        if let Some(errors) = errors {
+            errors.push(e);
+        }
+    });
+}
+
 pub fn parse_json<'de, T>(json: &'de str) -> (Option<T>, ParseStatus)
 where
     T: Deserialize<'de>,

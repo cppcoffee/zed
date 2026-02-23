@@ -76,7 +76,7 @@ use language::{
     ManifestDelegate, ManifestName, Patch, PointUtf16, TextBufferSnapshot, ToOffset, ToPointUtf16,
     Toolchain, Transaction, Unclipped,
     language_settings::{
-        AllLanguageSettings, FormatOnSave, Formatter, LanguageSettings, all_language_settings,
+        AllLanguageSettings, Formatter, LanguageSettings, all_language_settings,
         language_settings,
     },
     point_to_lsp,
@@ -1656,7 +1656,7 @@ impl LocalLspStore {
         let mut code_actions_on_format_formatters = None;
         let should_run_code_actions_on_format = !matches!(
             (trigger, &settings.format_on_save),
-            (FormatTrigger::Save, &FormatOnSave::Off)
+            (FormatTrigger::Save, &false)
         );
         if should_run_code_actions_on_format {
             let have_code_actions_to_run_on_format = settings
@@ -1678,8 +1678,8 @@ impl LocalLspStore {
         }
 
         let formatters = match (trigger, &settings.format_on_save) {
-            (FormatTrigger::Save, FormatOnSave::Off) => &[],
-            (FormatTrigger::Manual, _) | (FormatTrigger::Save, FormatOnSave::On) => {
+            (FormatTrigger::Save, false) => &[],
+            (FormatTrigger::Manual, _) | (FormatTrigger::Save, true) => {
                 settings.formatter.as_ref()
             }
         };

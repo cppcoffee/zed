@@ -445,8 +445,9 @@ pub struct LanguageSettingsContent {
     pub indent_guides: Option<IndentGuideSettingsContent>,
     /// Whether or not to perform a buffer format before saving.
     ///
-    /// Default: on
-    pub format_on_save: Option<FormatOnSave>,
+    /// Default: true
+    #[serde(default, deserialize_with = "crate::deserialize_format_on_save")]
+    pub format_on_save: FormatOnSave,
     /// Whether or not to remove any trailing whitespace from lines of a buffer
     /// before saving it.
     ///
@@ -880,28 +881,7 @@ pub struct PrettierSettingsContent {
     pub options: Option<HashMap<String, serde_json::Value>>,
 }
 
-/// TODO: this should just be a bool
-/// Controls the behavior of formatting files when they are saved.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    MergeFrom,
-    strum::VariantArray,
-    strum::VariantNames,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum FormatOnSave {
-    /// Files should be formatted on save.
-    On,
-    /// Files should not be formatted on save.
-    Off,
-}
+pub type FormatOnSave = Option<bool>;
 
 /// Controls which formatters should be used when formatting code.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema, MergeFrom)]
@@ -1201,3 +1181,22 @@ mod test {
         );
     }
 }
+
+    #[test]
+    fn test_format_on_save_deserialization_legacy() {
+        let json = serde_json::json!({ "format_on_save": "on" });
+        let settings: LanguageSettingsContent = serde_json::from_value(json).unwrap();
+        assert_eq!(settings.format_on_save, Some(true));
+
+        let json = serde_json::json!({ "format_on_save": "off" });
+        let settings: LanguageSettingsContent = serde_json::from_value(json).unwrap();
+        assert_eq!(settings.format_on_save, Some(false));
+
+        let json = serde_json::json!({ "format_on_save": true });
+        let settings: LanguageSettingsContent = serde_json::from_value(json).unwrap();
+        assert_eq!(settings.format_on_save, Some(true));
+
+        let json = serde_json::json!({ "format_on_save": false });
+        let settings: LanguageSettingsContent = serde_json::from_value(json).unwrap();
+        assert_eq!(settings.format_on_save, Some(false));
+    }

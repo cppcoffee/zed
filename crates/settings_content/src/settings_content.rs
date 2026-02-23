@@ -21,7 +21,8 @@ pub use merge_from::MergeFrom as MergeFromTrait;
 pub use project::*;
 use serde::de::DeserializeOwned;
 pub use serde_helper::{
-    serialize_f32_with_two_decimal_places, serialize_optional_f32_with_two_decimal_places,
+    deserialize_format_on_save, serialize_f32_with_two_decimal_places,
+    serialize_optional_f32_with_two_decimal_places,
 };
 use settings_json::parse_json_with_comments;
 pub use terminal::*;

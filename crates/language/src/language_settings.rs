@@ -85,7 +85,7 @@ pub struct LanguageSettings {
     /// Indent guide related settings.
     pub indent_guides: IndentGuideSettings,
     /// Whether or not to perform a buffer format before saving.
-    pub format_on_save: FormatOnSave,
+    pub format_on_save: bool,
     /// Whether or not to remove any trailing whitespace from lines of a buffer
     /// before saving it.
     pub remove_trailing_whitespace_on_save: bool,

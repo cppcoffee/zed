@@ -7657,26 +7657,19 @@ fn language_settings_data() -> Box<[SettingsPageItem]> {
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Format On Save",
                 description: "Whether or not to perform a buffer format before saving.",
-                field: Box::new(
-                    // TODO(settings_ui): this setting should just be a bool
-                    SettingField {
-                        json_path: Some("languages.$(language).format_on_save"),
-                        pick: |settings_content| {
-                            language_settings_field(settings_content, |language| {
-                                language.format_on_save.as_ref()
-                            })
-                        },
-                        write: |settings_content, value| {
-                            language_settings_field_mut(
-                                settings_content,
-                                value,
-                                |language, value| {
-                                    language.format_on_save = value;
-                                },
-                            )
-                        },
+                field: Box::new(SettingField {
+                    json_path: Some("languages.$(language).format_on_save"),
+                    pick: |settings_content| {
+                        language_settings_field(settings_content, |language| {
+                            language.format_on_save.as_ref()
+                        })
                     },
-                ),
+                    write: |settings_content, value| {
+                        language_settings_field_mut(settings_content, value, |language, value| {
+                            language.format_on_save = value;
+                        })
+                    },
+                }),
                 metadata: None,
                 files: USER | PROJECT,
             }),

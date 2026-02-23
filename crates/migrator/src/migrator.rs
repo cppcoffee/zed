@@ -1896,7 +1896,7 @@ mod tests {
             Some(
                 &r#"{
                       "formatter": "prettier",
-                      "format_on_save": "on"
+                      "format_on_save": true
                   }"#
                 .unindent(),
             ),
@@ -1921,7 +1921,7 @@ mod tests {
                             "language_server": "eslint"
                         }
                     ],
-                    "format_on_save": "on"
+                    "format_on_save": true
                 }"#
                 .unindent(),
             ),
@@ -1975,14 +1975,14 @@ mod tests {
                     "languages": {
                         "Rust": {
                             "formatter": "rust-analyzer",
-                            "format_on_save": "on"
+                            "format_on_save": true
                         },
                         "Python": {
                             "formatter": [
                                 "ruff",
                                 "black"
                             ],
-                            "format_on_save": "on"
+                            "format_on_save": true
                         }
                     }
                 }"#
@@ -2012,11 +2012,11 @@ mod tests {
             Some(
                 &r#"{
                     "formatter": "prettier",
-                    "format_on_save": "on",
+                    "format_on_save": true,
                     "languages": {
                         "Rust": {
                             "formatter": "rust-analyzer",
-                            "format_on_save": "on"
+                            "format_on_save": true
                         },
                         "Python": {
                             "format_on_save": "on"

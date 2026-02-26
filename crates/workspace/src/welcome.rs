@@ -10,8 +10,10 @@ use gpui::{
     ParentElement, Render, Styled, Task, Window, actions,
 };
 use menu::{SelectNext, SelectPrevious};
+use remote::RemoteConnectionOptions;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use ui::{ButtonLike, Divider, DividerColor, KeyBinding, Vector, VectorName, prelude::*};
 use util::ResultExt;
 use zed_actions::{Extensions, OpenOnboarding, OpenSettings, agent, command_palette};
@@ -21,6 +23,13 @@ use zed_actions::{Extensions, OpenOnboarding, OpenSettings, agent, command_palet
 #[serde(transparent)]
 pub struct OpenRecentProject {
     pub index: usize,
+}
+
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize, JsonSchema, Action)]
+#[action(namespace = workspace)]
+pub struct OpenRemoteProject {
+    pub options: RemoteConnectionOptions,
+    pub paths: Vec<PathBuf>,
 }
 
 actions!(
@@ -295,9 +304,15 @@ impl WelcomePage {
                                 .detach_and_log_err(cx);
                         })
                         .log_err();
-                } else {
-                    use zed_actions::OpenRecent;
-                    window.dispatch_action(OpenRecent::default().boxed_clone(), cx);
+                } else if let SerializedWorkspaceLocation::Remote(options) = location {
+                    window.dispatch_action(
+                        OpenRemoteProject {
+                            options: options.clone(),
+                            paths: paths.paths().to_vec(),
+                        }
+                        .boxed_clone(),
+                        cx,
+                    );
                 }
             }
         }

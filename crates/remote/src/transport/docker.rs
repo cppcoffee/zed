@@ -22,6 +22,8 @@ use util::{
 use futures::channel::mpsc::{Sender, UnboundedReceiver, UnboundedSender};
 use gpui::{App, AppContext, AsyncApp, Task};
 use rpc::proto::Envelope;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     RemoteClientDelegate, RemoteConnection, RemoteConnectionOptions, RemoteOs, RemotePlatform,
@@ -29,7 +31,7 @@ use crate::{
     transport::parse_platform,
 };
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct DockerConnectionOptions {
     pub name: String,
     pub container_id: String,

@@ -29,6 +29,9 @@ use gpui::{
 };
 use parking_lot::Mutex;
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 use release_channel::ReleaseChannel;
 use rpc::{
     AnyProtoClient, ErrorExt, ProtoClient, ProtoMessageHandlerSet, RpcError,
@@ -292,7 +295,7 @@ impl State {
 }
 
 /// The state of the ssh connection.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum ConnectionState {
     Connecting,
     Connected,
@@ -1273,7 +1276,7 @@ impl ConnectionPool {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum RemoteConnectionOptions {
     Ssh(SshConnectionOptions),
     Wsl(WslConnectionOptions),

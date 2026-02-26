@@ -46,7 +46,7 @@ use util::{ResultExt, paths::PathExt};
 use workspace::{
     HistoryManager, ModalView, MultiWorkspace, OpenOptions, OpenVisible, PathList,
     SerializedWorkspaceLocation, WORKSPACE_DB, Workspace, WorkspaceId,
-    notifications::DetachAndPromptErr, with_active_or_new_workspace,
+    notifications::DetachAndPromptErr, welcome::OpenRemoteProject, with_active_or_new_workspace,
 };
 use zed_actions::{OpenDevContainer, OpenRecent, OpenRemote};
 
@@ -365,6 +365,29 @@ pub fn init(cx: &mut App) {
                 RemoteServerProjects::new(create_new_window, fs, window, handle, cx)
             })
         });
+    });
+
+    cx.on_action(|action: &OpenRemoteProject, cx| {
+        let mut options = action.options.clone();
+        let paths = action.paths.clone();
+        if let RemoteConnectionOptions::Ssh(options) = &mut options {
+            RemoteSettings::get_global(cx).fill_connection_options_from_settings(options);
+        }
+
+        with_active_or_new_workspace(cx, move |workspace, window, cx| {
+            let app_state = workspace.app_state().clone();
+            let open_options = OpenOptions {
+                replace_window: window.window_handle().downcast::<MultiWorkspace>(),
+                ..Default::default()
+            };
+
+            cx.spawn_in(window, async move |_, cx| {
+                open_remote_project(options, paths, app_state, open_options, cx)
+                    .await
+                    .log_err();
+            })
+            .detach();
+        })
     });
 
     cx.observe_new(DisconnectedOverlay::register).detach();

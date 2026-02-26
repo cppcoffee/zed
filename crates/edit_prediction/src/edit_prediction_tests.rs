@@ -196,18 +196,12 @@ async fn test_simple_request(cx: &mut TestAppContext) {
 
     let (request, respond_tx) = requests.predict.next().await.unwrap();
 
-    // TODO Put back when we have a structured request again
-    // assert_eq!(
-    //     request.excerpt_path.as_ref(),
-    //     Path::new(path!("root/foo.md"))
-    // );
-    // assert_eq!(
-    //     request.cursor_point,
-    //     Point {
-    //         line: Line(1),
-    //         column: 3
-    //     }
-    // );
+    assert_eq!(
+        request.input.cursor_path.as_ref(),
+        Path::new(path!("root/foo.md"))
+    );
+    assert_eq!(request.input.cursor_excerpt.as_ref(), "Hello!\nHow\nBye\n");
+    assert_eq!(request.input.cursor_offset_in_excerpt, 10);
 
     respond_tx
         .send(model_response(

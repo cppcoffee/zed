@@ -1319,7 +1319,10 @@ impl EditorElement {
                 cx,
             );
 
-        let diff_review_indicator = if gutter_hovered && show_diff_review {
+        let diff_review_indicator = if gutter_hovered
+            && show_diff_review
+            && split_side != Some(SplitSide::Left)
+        {
             let is_visible = editor
                 .gutter_diff_review_indicator
                 .0

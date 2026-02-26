@@ -88,65 +88,64 @@ impl From<PathEvent> for PathBuf {
 
 #[async_trait::async_trait]
 pub trait Fs: Send + Sync {
-    async fn create_dir(&self, path: &Path) -> Result<()>;
-    async fn create_symlink(&self, path: &Path, target: PathBuf) -> Result<()>;
-    async fn create_file(&self, path: &Path, options: CreateOptions) -> Result<()>;
-    async fn create_file_with(
-        &self,
-        path: &Path,
-        content: Pin<&mut (dyn AsyncRead + Send)>,
-    ) -> Result<()>;
-    async fn extract_tar_file(
-        &self,
-        path: &Path,
-        content: Archive<Pin<&mut (dyn AsyncRead + Send)>>,
-    ) -> Result<()>;
-    async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()>;
-    async fn rename(&self, source: &Path, target: &Path, options: RenameOptions) -> Result<()>;
-    async fn remove_dir(&self, path: &Path, options: RemoveOptions) -> Result<()>;
-    async fn trash_dir(&self, path: &Path, options: RemoveOptions) -> Result<()> {
-        self.remove_dir(path, options).await
-    }
-    async fn remove_file(&self, path: &Path, options: RemoveOptions) -> Result<()>;
-    async fn trash_file(&self, path: &Path, options: RemoveOptions) -> Result<()> {
-        self.remove_file(path, options).await
-    }
-    async fn open_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>>;
-    async fn open_sync(&self, path: &Path) -> Result<Box<dyn io::Read + Send + Sync>>;
-    async fn load(&self, path: &Path) -> Result<String> {
-        Ok(String::from_utf8(self.load_bytes(path).await?)?)
-    }
-    async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>>;
-    async fn atomic_write(&self, path: PathBuf, text: String) -> Result<()>;
-    async fn save(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()>;
-    async fn write(&self, path: &Path, content: &[u8]) -> Result<()>;
-    async fn canonicalize(&self, path: &Path) -> Result<PathBuf>;
-    async fn is_file(&self, path: &Path) -> bool;
-    async fn is_dir(&self, path: &Path) -> bool;
-    async fn metadata(&self, path: &Path) -> Result<Option<Metadata>>;
-    async fn read_link(&self, path: &Path) -> Result<PathBuf>;
-    async fn read_dir(
-        &self,
-        path: &Path,
-    ) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>>;
+    async fn create_dir_dyn(&self, path: &Path) -> Result<()>;
+    async fn create_dir(&self, path: impl AsRef<Path> + Send) -> Result<()> where Self: Sized { self.create_dir_dyn(path.as_ref()).await }
+    async fn create_symlink_dyn(&self, path: &Path, target: PathBuf) -> Result<()>;
+    async fn create_symlink(&self, path: impl AsRef<Path> + Send, target: PathBuf) -> Result<()> where Self: Sized { self.create_symlink_dyn(path.as_ref(), target).await }
+    async fn create_file_dyn(&self, path: &Path, options: CreateOptions) -> Result<()>;
+    async fn create_file(&self, path: impl AsRef<Path> + Send, options: CreateOptions) -> Result<()> where Self: Sized { self.create_file_dyn(path.as_ref(), options).await }
+    async fn create_file_with_dyn(&self, path: &Path, content: Pin<&mut (dyn AsyncRead + Send)>) -> Result<()>;
+    async fn create_file_with(&self, path: impl AsRef<Path> + Send, content: Pin<&mut (dyn AsyncRead + Send)>) -> Result<()> where Self: Sized { self.create_file_with_dyn(path.as_ref(), content).await }
+    async fn extract_tar_file_dyn(&self, path: &Path, content: Archive<Pin<&mut (dyn AsyncRead + Send)>>) -> Result<()>;
+    async fn extract_tar_file(&self, path: impl AsRef<Path> + Send, content: Archive<Pin<&mut (dyn AsyncRead + Send)>>) -> Result<()> where Self: Sized { self.extract_tar_file_dyn(path.as_ref(), content).await }
+    async fn copy_file_dyn(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()>;
+    async fn copy_file(&self, source: impl AsRef<Path> + Send, target: impl AsRef<Path> + Send, options: CopyOptions) -> Result<()> where Self: Sized { self.copy_file_dyn(source.as_ref(), target.as_ref(), options).await }
+    async fn rename_dyn(&self, source: &Path, target: &Path, options: RenameOptions) -> Result<()>;
+    async fn rename(&self, source: impl AsRef<Path> + Send, target: impl AsRef<Path> + Send, options: RenameOptions) -> Result<()> where Self: Sized { self.rename_dyn(source.as_ref(), target.as_ref(), options).await }
+    async fn remove_dir_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()>;
+    async fn remove_dir(&self, path: impl AsRef<Path> + Send, options: RemoveOptions) -> Result<()> where Self: Sized { self.remove_dir_dyn(path.as_ref(), options).await }
+    async fn trash_dir_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> { self.remove_dir_dyn(path, options).await }
+    async fn trash_dir(&self, path: impl AsRef<Path> + Send, options: RemoveOptions) -> Result<()> where Self: Sized { self.trash_dir_dyn(path.as_ref(), options).await }
+    async fn remove_file_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()>;
+    async fn remove_file(&self, path: impl AsRef<Path> + Send, options: RemoveOptions) -> Result<()> where Self: Sized { self.remove_file_dyn(path.as_ref(), options).await }
+    async fn trash_file_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> { self.remove_file_dyn(path, options).await }
+    async fn trash_file(&self, path: impl AsRef<Path> + Send, options: RemoveOptions) -> Result<()> where Self: Sized { self.trash_file_dyn(path.as_ref(), options).await }
+    async fn open_handle_dyn(&self, path: &Path) -> Result<Arc<dyn FileHandle>>;
+    async fn open_handle(&self, path: impl AsRef<Path> + Send) -> Result<Arc<dyn FileHandle>> where Self: Sized { self.open_handle_dyn(path.as_ref()).await }
+    async fn open_sync_dyn(&self, path: &Path) -> Result<Box<dyn io::Read + Send + Sync>>;
+    async fn open_sync(&self, path: impl AsRef<Path> + Send) -> Result<Box<dyn io::Read + Send + Sync>> where Self: Sized { self.open_sync_dyn(path.as_ref()).await }
+    async fn load_dyn(&self, path: &Path) -> Result<String> { Ok(String::from_utf8(self.load_bytes_dyn(path).await?)?) }
+    async fn load(&self, path: impl AsRef<Path> + Send) -> Result<String> where Self: Sized { self.load_dyn(path.as_ref()).await }
+    async fn load_bytes_dyn(&self, path: &Path) -> Result<Vec<u8>>;
+    async fn load_bytes(&self, path: impl AsRef<Path> + Send) -> Result<Vec<u8>> where Self: Sized { self.load_bytes_dyn(path.as_ref()).await }
+    async fn atomic_write_dyn(&self, path: PathBuf, text: String) -> Result<()>;
+    async fn atomic_write(&self, path: impl AsRef<Path> + Send, text: String) -> Result<()> where Self: Sized { self.atomic_write_dyn(path.as_ref().to_path_buf(), text).await }
+    async fn save_dyn(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()>;
+    async fn save(&self, path: impl AsRef<Path> + Send, text: &Rope, line_ending: LineEnding) -> Result<()> where Self: Sized { self.save_dyn(path.as_ref(), text, line_ending).await }
+    async fn write_dyn(&self, path: &Path, content: &[u8]) -> Result<()>;
+    async fn write(&self, path: impl AsRef<Path> + Send, content: &[u8]) -> Result<()> where Self: Sized { self.write_dyn(path.as_ref(), content).await }
+    async fn canonicalize_dyn(&self, path: &Path) -> Result<PathBuf>;
+    async fn canonicalize(&self, path: impl AsRef<Path> + Send) -> Result<PathBuf> where Self: Sized { self.canonicalize_dyn(path.as_ref()).await }
+    async fn is_file_dyn(&self, path: &Path) -> bool;
+    async fn is_file(&self, path: impl AsRef<Path> + Send) -> bool where Self: Sized { self.is_file_dyn(path.as_ref()).await }
+    async fn is_dir_dyn(&self, path: &Path) -> bool;
+    async fn is_dir(&self, path: impl AsRef<Path> + Send) -> bool where Self: Sized { self.is_dir_dyn(path.as_ref()).await }
+    async fn metadata_dyn(&self, path: &Path) -> Result<Option<Metadata>>;
+    async fn metadata(&self, path: impl AsRef<Path> + Send) -> Result<Option<Metadata>> where Self: Sized { self.metadata_dyn(path.as_ref()).await }
+    async fn read_link_dyn(&self, path: &Path) -> Result<PathBuf>;
+    async fn read_link(&self, path: impl AsRef<Path> + Send) -> Result<PathBuf> where Self: Sized { self.read_link_dyn(path.as_ref()).await }
+    async fn read_dir_dyn(&self, path: &Path) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>>;
+    async fn read_dir(&self, path: impl AsRef<Path> + Send) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>> where Self: Sized { self.read_dir_dyn(path.as_ref()).await }
 
-    async fn watch(
-        &self,
-        path: &Path,
-        latency: Duration,
-    ) -> (
-        Pin<Box<dyn Send + Stream<Item = Vec<PathEvent>>>>,
-        Arc<dyn Watcher>,
-    );
+    async fn watch_dyn(&self, path: &Path, latency: Duration) -> (Pin<Box<dyn Send + Stream<Item = Vec<PathEvent>>>>, Arc<dyn Watcher>);
+    async fn watch(&self, path: impl AsRef<Path> + Send, latency: Duration) -> (Pin<Box<dyn Send + Stream<Item = Vec<PathEvent>>>>, Arc<dyn Watcher>) where Self: Sized { self.watch_dyn(path.as_ref(), latency).await }
 
-    fn open_repo(
-        &self,
-        abs_dot_git: &Path,
-        system_git_binary_path: Option<&Path>,
-    ) -> Option<Arc<dyn GitRepository>>;
-    async fn git_init(&self, abs_work_directory: &Path, fallback_branch_name: String)
-    -> Result<()>;
-    async fn git_clone(&self, repo_url: &str, abs_work_directory: &Path) -> Result<()>;
+    fn open_repo_dyn(&self, abs_dot_git: &Path, system_git_binary_path: Option<&Path>) -> Option<Arc<dyn GitRepository>>;
+    fn open_repo(&self, abs_dot_git: impl AsRef<Path>, system_git_binary_path: Option<&Path>) -> Option<Arc<dyn GitRepository>> where Self: Sized { self.open_repo_dyn(abs_dot_git.as_ref(), system_git_binary_path) }
+    async fn git_init_dyn(&self, abs_work_directory: &Path, fallback_branch_name: String) -> Result<()>;
+    async fn git_init(&self, abs_work_directory: impl AsRef<Path> + Send, fallback_branch_name: String) -> Result<()> where Self: Sized { self.git_init_dyn(abs_work_directory.as_ref(), fallback_branch_name).await }
+    async fn git_clone_dyn(&self, repo_url: &str, abs_work_directory: &Path) -> Result<()>;
+    async fn git_clone(&self, repo_url: &str, abs_work_directory: impl AsRef<Path> + Send) -> Result<()> where Self: Sized { self.git_clone_dyn(repo_url, abs_work_directory.as_ref()).await }
     fn is_fake(&self) -> bool;
     async fn is_case_sensitive(&self) -> bool;
     fn subscribe_to_jobs(&self) -> JobEventReceiver;
@@ -155,6 +154,66 @@ pub trait Fs: Send + Sync {
     fn as_fake(&self) -> Arc<FakeFs> {
         panic!("called as_fake on a real fs");
     }
+}
+
+
+impl dyn Fs {
+    pub async fn create_dir(&self, path: impl AsRef<Path>) -> Result<()> { self.create_dir_dyn(path.as_ref()).await }
+
+    pub async fn create_symlink(&self, path: impl AsRef<Path>, target: PathBuf) -> Result<()> { self.create_symlink_dyn(path.as_ref(), target).await }
+
+    pub async fn create_file(&self, path: impl AsRef<Path>, options: CreateOptions) -> Result<()> { self.create_file_dyn(path.as_ref(), options).await }
+
+    pub async fn create_file_with(&self, path: impl AsRef<Path>, content: Pin<&mut (dyn AsyncRead + Send)>) -> Result<()> { self.create_file_with_dyn(path.as_ref(), content).await }
+
+    pub async fn extract_tar_file(&self, path: impl AsRef<Path>, content: Archive<Pin<&mut (dyn AsyncRead + Send)>>) -> Result<()> { self.extract_tar_file_dyn(path.as_ref(), content).await }
+
+    pub async fn copy_file(&self, source: impl AsRef<Path>, target: impl AsRef<Path>, options: CopyOptions) -> Result<()> { self.copy_file_dyn(source.as_ref(), target.as_ref(), options).await }
+
+    pub async fn rename(&self, source: impl AsRef<Path>, target: impl AsRef<Path>, options: RenameOptions) -> Result<()> { self.rename_dyn(source.as_ref(), target.as_ref(), options).await }
+
+    pub async fn remove_dir(&self, path: impl AsRef<Path>, options: RemoveOptions) -> Result<()> { self.remove_dir_dyn(path.as_ref(), options).await }
+
+    pub async fn trash_dir(&self, path: impl AsRef<Path>, options: RemoveOptions) -> Result<()> { self.trash_dir_dyn(path.as_ref(), options).await }
+
+    pub async fn remove_file(&self, path: impl AsRef<Path>, options: RemoveOptions) -> Result<()> { self.remove_file_dyn(path.as_ref(), options).await }
+
+    pub async fn trash_file(&self, path: impl AsRef<Path>, options: RemoveOptions) -> Result<()> { self.trash_file_dyn(path.as_ref(), options).await }
+
+    pub async fn open_handle(&self, path: impl AsRef<Path>) -> Result<Arc<dyn FileHandle>> { self.open_handle_dyn(path.as_ref()).await }
+
+    pub async fn open_sync(&self, path: impl AsRef<Path>) -> Result<Box<dyn io::Read + Send + Sync>> { self.open_sync_dyn(path.as_ref()).await }
+
+    pub async fn load(&self, path: impl AsRef<Path>) -> Result<String> { self.load_dyn(path.as_ref()).await }
+
+    pub async fn load_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>> { self.load_bytes_dyn(path.as_ref()).await }
+
+    pub async fn atomic_write(&self, path: impl AsRef<Path>, text: String) -> Result<()> { self.atomic_write_dyn(path.as_ref().to_path_buf(), text).await }
+
+    pub async fn save(&self, path: impl AsRef<Path>, text: &Rope, line_ending: LineEnding) -> Result<()> { self.save_dyn(path.as_ref(), text, line_ending).await }
+
+    pub async fn write(&self, path: impl AsRef<Path>, content: &[u8]) -> Result<()> { self.write_dyn(path.as_ref(), content).await }
+
+    pub async fn canonicalize(&self, path: impl AsRef<Path>) -> Result<PathBuf> { self.canonicalize_dyn(path.as_ref()).await }
+
+    pub async fn is_file(&self, path: impl AsRef<Path>) -> bool { self.is_file_dyn(path.as_ref()).await }
+
+    pub async fn is_dir(&self, path: impl AsRef<Path>) -> bool { self.is_dir_dyn(path.as_ref()).await }
+
+    pub async fn metadata(&self, path: impl AsRef<Path>) -> Result<Option<Metadata>> { self.metadata_dyn(path.as_ref()).await }
+
+    pub async fn read_link(&self, path: impl AsRef<Path>) -> Result<PathBuf> { self.read_link_dyn(path.as_ref()).await }
+
+    pub async fn read_dir(&self, path: impl AsRef<Path>) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>> { self.read_dir_dyn(path.as_ref()).await }
+
+    pub async fn watch(&self, path: impl AsRef<Path>, latency: Duration) -> (Pin<Box<dyn Send + Stream<Item = Vec<PathEvent>>>>, Arc<dyn Watcher>) { self.watch_dyn(path.as_ref(), latency).await }
+
+    pub fn open_repo(&self, abs_dot_git: impl AsRef<Path>, system_git_binary_path: Option<&Path>) -> Option<Arc<dyn GitRepository>> { self.open_repo_dyn(abs_dot_git.as_ref(), system_git_binary_path) }
+
+    pub async fn git_init(&self, abs_work_directory: impl AsRef<Path>, fallback_branch_name: String) -> Result<()> { self.git_init_dyn(abs_work_directory.as_ref(), fallback_branch_name).await }
+
+    pub async fn git_clone(&self, repo_url: &str, abs_work_directory: impl AsRef<Path>) -> Result<()> { self.git_clone_dyn(repo_url, abs_work_directory.as_ref()).await }
+
 }
 
 struct GlobalFs(Arc<dyn Fs>);
@@ -508,11 +567,11 @@ impl RealFs {
 
 #[async_trait::async_trait]
 impl Fs for RealFs {
-    async fn create_dir(&self, path: &Path) -> Result<()> {
+    async fn create_dir_dyn(&self, path: &Path) -> Result<()> {
         Ok(smol::fs::create_dir_all(path).await?)
     }
 
-    async fn create_symlink(&self, path: &Path, target: PathBuf) -> Result<()> {
+    async fn create_symlink_dyn(&self, path: &Path, target: PathBuf) -> Result<()> {
         #[cfg(unix)]
         smol::fs::unix::symlink(target, path).await?;
 
@@ -538,7 +597,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn create_file(&self, path: &Path, options: CreateOptions) -> Result<()> {
+    async fn create_file_dyn(&self, path: &Path, options: CreateOptions) -> Result<()> {
         let mut open_options = smol::fs::OpenOptions::new();
         open_options.write(true).create(true);
         if options.overwrite {
@@ -553,7 +612,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn create_file_with(
+    async fn create_file_with_dyn(
         &self,
         path: &Path,
         content: Pin<&mut (dyn AsyncRead + Send)>,
@@ -565,7 +624,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn extract_tar_file(
+    async fn extract_tar_file_dyn(
         &self,
         path: &Path,
         content: Archive<Pin<&mut (dyn AsyncRead + Send)>>,
@@ -574,7 +633,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
+    async fn copy_file_dyn(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
         if !options.overwrite && smol::fs::metadata(target).await.is_ok() {
             if options.ignore_if_exists {
                 return Ok(());
@@ -587,7 +646,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn rename(&self, source: &Path, target: &Path, options: RenameOptions) -> Result<()> {
+    async fn rename_dyn(&self, source: &Path, target: &Path, options: RenameOptions) -> Result<()> {
         if !options.overwrite && smol::fs::metadata(target).await.is_ok() {
             if options.ignore_if_exists {
                 return Ok(());
@@ -606,7 +665,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn remove_dir(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    async fn remove_dir_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         let result = if options.recursive {
             smol::fs::remove_dir_all(path).await
         } else {
@@ -621,13 +680,13 @@ impl Fs for RealFs {
         }
     }
 
-    async fn remove_file(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    async fn remove_file_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         #[cfg(windows)]
         if let Ok(Some(metadata)) = self.metadata(path).await
             && metadata.is_symlink
             && metadata.is_dir
         {
-            self.remove_dir(
+            self.remove_dir_dyn(
                 path,
                 RemoveOptions {
                     recursive: false,
@@ -648,7 +707,7 @@ impl Fs for RealFs {
     }
 
     #[cfg(target_os = "macos")]
-    async fn trash_file(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
+    async fn trash_file_dyn(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
         use cocoa::{
             base::{id, nil},
             foundation::{NSAutoreleasePool, NSString},
@@ -672,12 +731,12 @@ impl Fs for RealFs {
     }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    async fn trash_file(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
+    async fn trash_file_dyn(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
         if let Ok(Some(metadata)) = self.metadata(path).await
             && metadata.is_symlink
         {
             // TODO: trash_file does not support trashing symlinks yet - https://github.com/bilelmoussaoui/ashpd/issues/255
-            return self.remove_file(path, RemoveOptions::default()).await;
+            return self.remove_file_dyn(path, RemoveOptions::default()).await;
         }
         let file = smol::fs::File::open(path).await?;
         match trash::trash_file(&file.as_fd()).await {
@@ -686,13 +745,13 @@ impl Fs for RealFs {
                 log::error!("Failed to trash file: {}", err);
                 // Trashing files can fail if you don't have a trashing dbus service configured.
                 // In that case, delete the file directly instead.
-                return self.remove_file(path, RemoveOptions::default()).await;
+                return self.remove_file_dyn(path, RemoveOptions::default()).await;
             }
         }
     }
 
     #[cfg(target_os = "windows")]
-    async fn trash_file(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
+    async fn trash_file_dyn(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
         use util::paths::SanitizedPath;
         use windows::{
             Storage::{StorageDeleteOption, StorageFile},
@@ -709,17 +768,17 @@ impl Fs for RealFs {
     }
 
     #[cfg(target_os = "macos")]
-    async fn trash_dir(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    async fn trash_dir_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         self.trash_file(path, options).await
     }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    async fn trash_dir(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    async fn trash_dir_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         self.trash_file(path, options).await
     }
 
     #[cfg(target_os = "windows")]
-    async fn trash_dir(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
+    async fn trash_dir_dyn(&self, path: &Path, _options: RemoveOptions) -> Result<()> {
         use util::paths::SanitizedPath;
         use windows::{
             Storage::{StorageDeleteOption, StorageFolder},
@@ -736,11 +795,11 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn open_sync(&self, path: &Path) -> Result<Box<dyn io::Read + Send + Sync>> {
+    async fn open_sync_dyn(&self, path: &Path) -> Result<Box<dyn io::Read + Send + Sync>> {
         Ok(Box::new(std::fs::File::open(path)?))
     }
 
-    async fn open_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>> {
+    async fn open_handle_dyn(&self, path: &Path) -> Result<Arc<dyn FileHandle>> {
         let mut options = std::fs::OpenOptions::new();
         options.read(true);
         #[cfg(windows)]
@@ -751,7 +810,7 @@ impl Fs for RealFs {
         Ok(Arc::new(options.open(path)?))
     }
 
-    async fn load(&self, path: &Path) -> Result<String> {
+    async fn load_dyn(&self, path: &Path) -> Result<String> {
         let path = path.to_path_buf();
         self.executor
             .spawn(async move {
@@ -761,7 +820,7 @@ impl Fs for RealFs {
             .await
     }
 
-    async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>> {
+    async fn load_bytes_dyn(&self, path: &Path) -> Result<Vec<u8>> {
         let path = path.to_path_buf();
         let bytes = self
             .executor
@@ -771,7 +830,7 @@ impl Fs for RealFs {
     }
 
     #[cfg(not(target_os = "windows"))]
-    async fn atomic_write(&self, path: PathBuf, data: String) -> Result<()> {
+    async fn atomic_write_dyn(&self, path: PathBuf, data: String) -> Result<()> {
         smol::unblock(move || {
             // Use the directory of the destination as temp dir to avoid
             // invalid cross-device link error, and XDG_CACHE_DIR for fallback.
@@ -788,7 +847,7 @@ impl Fs for RealFs {
     }
 
     #[cfg(target_os = "windows")]
-    async fn atomic_write(&self, path: PathBuf, data: String) -> Result<()> {
+    async fn atomic_write_dyn(&self, path: PathBuf, data: String) -> Result<()> {
         smol::unblock(move || {
             // If temp dir is set to a different drive than the destination,
             // we receive error:
@@ -816,7 +875,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn save(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()> {
+    async fn save_dyn(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()> {
         let buffer_size = text.summary().len.min(10 * 1024);
         if let Some(path) = path.parent() {
             self.create_dir(path)
@@ -834,7 +893,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn write(&self, path: &Path, content: &[u8]) -> Result<()> {
+    async fn write_dyn(&self, path: &Path, content: &[u8]) -> Result<()> {
         if let Some(path) = path.parent() {
             self.create_dir(path)
                 .await
@@ -850,7 +909,7 @@ impl Fs for RealFs {
             .await
     }
 
-    async fn canonicalize(&self, path: &Path) -> Result<PathBuf> {
+    async fn canonicalize_dyn(&self, path: &Path) -> Result<PathBuf> {
         let path = path.to_owned();
         self.executor
             .spawn(async move {
@@ -865,21 +924,21 @@ impl Fs for RealFs {
             .await
     }
 
-    async fn is_file(&self, path: &Path) -> bool {
+    async fn is_file_dyn(&self, path: &Path) -> bool {
         let path = path.to_owned();
         self.executor
             .spawn(async move { std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) })
             .await
     }
 
-    async fn is_dir(&self, path: &Path) -> bool {
+    async fn is_dir_dyn(&self, path: &Path) -> bool {
         let path = path.to_owned();
         self.executor
             .spawn(async move { std::fs::metadata(path).is_ok_and(|metadata| metadata.is_dir()) })
             .await
     }
 
-    async fn metadata(&self, path: &Path) -> Result<Option<Metadata>> {
+    async fn metadata_dyn(&self, path: &Path) -> Result<Option<Metadata>> {
         let path_buf = path.to_owned();
         let symlink_metadata = match self
             .executor
@@ -951,7 +1010,7 @@ impl Fs for RealFs {
         }))
     }
 
-    async fn read_link(&self, path: &Path) -> Result<PathBuf> {
+    async fn read_link_dyn(&self, path: &Path) -> Result<PathBuf> {
         let path = path.to_owned();
         let path = self
             .executor
@@ -960,7 +1019,7 @@ impl Fs for RealFs {
         Ok(path)
     }
 
-    async fn read_dir(
+    async fn read_dir_dyn(
         &self,
         path: &Path,
     ) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>> {
@@ -977,7 +1036,7 @@ impl Fs for RealFs {
         Ok(Box::pin(result))
     }
 
-    async fn watch(
+    async fn watch_dyn(
         &self,
         path: &Path,
         latency: Duration,
@@ -1041,7 +1100,7 @@ impl Fs for RealFs {
         )
     }
 
-    fn open_repo(
+    fn open_repo_dyn(
         &self,
         dotgit_path: &Path,
         system_git_binary_path: Option<&Path>,
@@ -1054,7 +1113,7 @@ impl Fs for RealFs {
         )?))
     }
 
-    async fn git_init(
+    async fn git_init_dyn(
         &self,
         abs_work_directory_path: &Path,
         fallback_branch_name: String,
@@ -1083,7 +1142,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn git_clone(&self, repo_url: &str, abs_work_directory: &Path) -> Result<()> {
+    async fn git_clone_dyn(&self, repo_url: &str, abs_work_directory: &Path) -> Result<()> {
         let job_id = self.next_job_id.fetch_add(1, Ordering::SeqCst);
         let job_info = JobInfo {
             id: job_id,
@@ -2283,7 +2342,7 @@ impl FileHandle for FakeHandle {
 #[cfg(feature = "test-support")]
 #[async_trait::async_trait]
 impl Fs for FakeFs {
-    async fn create_dir(&self, path: &Path) -> Result<()> {
+    async fn create_dir_dyn(&self, path: &Path) -> Result<()> {
         self.simulate_random_delay().await;
 
         let mut created_dirs = Vec::new();
@@ -2317,7 +2376,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn create_file(&self, path: &Path, options: CreateOptions) -> Result<()> {
+    async fn create_file_dyn(&self, path: &Path, options: CreateOptions) -> Result<()> {
         self.simulate_random_delay().await;
         let mut state = self.state.lock();
         let inode = state.get_and_increment_inode();
@@ -2350,7 +2409,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn create_symlink(&self, path: &Path, target: PathBuf) -> Result<()> {
+    async fn create_symlink_dyn(&self, path: &Path, target: PathBuf) -> Result<()> {
         let mut state = self.state.lock();
         let file = FakeFsEntry::Symlink { target };
         state
@@ -2370,7 +2429,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn create_file_with(
+    async fn create_file_with_dyn(
         &self,
         path: &Path,
         mut content: Pin<&mut (dyn AsyncRead + Send)>,
@@ -2381,7 +2440,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn extract_tar_file(
+    async fn extract_tar_file_dyn(
         &self,
         path: &Path,
         content: Archive<Pin<&mut (dyn AsyncRead + Send)>>,
@@ -2400,7 +2459,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn rename(&self, old_path: &Path, new_path: &Path, options: RenameOptions) -> Result<()> {
+    async fn rename_dyn(&self, old_path: &Path, new_path: &Path, options: RenameOptions) -> Result<()> {
         self.simulate_random_delay().await;
 
         let old_path = normalize_path(old_path);
@@ -2462,7 +2521,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
+    async fn copy_file_dyn(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
         self.simulate_random_delay().await;
 
         let source = normalize_path(source);
@@ -2499,7 +2558,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn remove_dir(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    async fn remove_dir_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         self.simulate_random_delay().await;
 
         let path = normalize_path(path);
@@ -2532,7 +2591,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn remove_file(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    async fn remove_file_dyn(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         self.simulate_random_delay().await;
 
         let path = normalize_path(path);
@@ -2558,12 +2617,12 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn open_sync(&self, path: &Path) -> Result<Box<dyn io::Read + Send + Sync>> {
+    async fn open_sync_dyn(&self, path: &Path) -> Result<Box<dyn io::Read + Send + Sync>> {
         let bytes = self.load_internal(path).await?;
         Ok(Box::new(io::Cursor::new(bytes)))
     }
 
-    async fn open_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>> {
+    async fn open_handle_dyn(&self, path: &Path) -> Result<Arc<dyn FileHandle>> {
         self.simulate_random_delay().await;
         let mut state = self.state.lock();
         let inode = match state.entry(path)? {
@@ -2574,16 +2633,16 @@ impl Fs for FakeFs {
         Ok(Arc::new(FakeHandle { inode }))
     }
 
-    async fn load(&self, path: &Path) -> Result<String> {
+    async fn load_dyn(&self, path: &Path) -> Result<String> {
         let content = self.load_internal(path).await?;
         Ok(String::from_utf8(content)?)
     }
 
-    async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>> {
+    async fn load_bytes_dyn(&self, path: &Path) -> Result<Vec<u8>> {
         self.load_internal(path).await
     }
 
-    async fn atomic_write(&self, path: PathBuf, data: String) -> Result<()> {
+    async fn atomic_write_dyn(&self, path: PathBuf, data: String) -> Result<()> {
         self.simulate_random_delay().await;
         let path = normalize_path(path.as_path());
         if let Some(path) = path.parent() {
@@ -2593,7 +2652,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn save(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()> {
+    async fn save_dyn(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()> {
         self.simulate_random_delay().await;
         let path = normalize_path(path);
         let content = text::chunks_with_line_ending(text, line_ending).collect::<String>();
@@ -2604,7 +2663,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn write(&self, path: &Path, content: &[u8]) -> Result<()> {
+    async fn write_dyn(&self, path: &Path, content: &[u8]) -> Result<()> {
         self.simulate_random_delay().await;
         let path = normalize_path(path);
         if let Some(path) = path.parent() {
@@ -2614,7 +2673,7 @@ impl Fs for FakeFs {
         Ok(())
     }
 
-    async fn canonicalize(&self, path: &Path) -> Result<PathBuf> {
+    async fn canonicalize_dyn(&self, path: &Path) -> Result<PathBuf> {
         let path = normalize_path(path);
         self.simulate_random_delay().await;
         let state = self.state.lock();
@@ -2624,7 +2683,7 @@ impl Fs for FakeFs {
         Ok(canonical_path)
     }
 
-    async fn is_file(&self, path: &Path) -> bool {
+    async fn is_file_dyn(&self, path: &Path) -> bool {
         let path = normalize_path(path);
         self.simulate_random_delay().await;
         let mut state = self.state.lock();
@@ -2635,13 +2694,13 @@ impl Fs for FakeFs {
         }
     }
 
-    async fn is_dir(&self, path: &Path) -> bool {
+    async fn is_dir_dyn(&self, path: &Path) -> bool {
         self.metadata(path)
             .await
             .is_ok_and(|metadata| metadata.is_some_and(|metadata| metadata.is_dir))
     }
 
-    async fn metadata(&self, path: &Path) -> Result<Option<Metadata>> {
+    async fn metadata_dyn(&self, path: &Path) -> Result<Option<Metadata>> {
         self.simulate_random_delay().await;
         let path = normalize_path(path);
         let mut state = self.state.lock();
@@ -2686,7 +2745,7 @@ impl Fs for FakeFs {
         }
     }
 
-    async fn read_link(&self, path: &Path) -> Result<PathBuf> {
+    async fn read_link_dyn(&self, path: &Path) -> Result<PathBuf> {
         self.simulate_random_delay().await;
         let path = normalize_path(path);
         let mut state = self.state.lock();
@@ -2700,7 +2759,7 @@ impl Fs for FakeFs {
         }
     }
 
-    async fn read_dir(
+    async fn read_dir_dyn(
         &self,
         path: &Path,
     ) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>> {
@@ -2717,7 +2776,7 @@ impl Fs for FakeFs {
         Ok(Box::pin(futures::stream::iter(paths)))
     }
 
-    async fn watch(
+    async fn watch_dyn(
         &self,
         path: &Path,
         _: Duration,
@@ -2758,7 +2817,7 @@ impl Fs for FakeFs {
         )
     }
 
-    fn open_repo(
+    fn open_repo_dyn(
         &self,
         abs_dot_git: &Path,
         _system_git_binary: Option<&Path>,
@@ -2782,7 +2841,7 @@ impl Fs for FakeFs {
         .log_err()
     }
 
-    async fn git_init(
+    async fn git_init_dyn(
         &self,
         abs_work_directory_path: &Path,
         _fallback_branch_name: String,
@@ -2790,7 +2849,7 @@ impl Fs for FakeFs {
         self.create_dir(&abs_work_directory_path.join(".git")).await
     }
 
-    async fn git_clone(&self, _repo_url: &str, _abs_work_directory: &Path) -> Result<()> {
+    async fn git_clone_dyn(&self, _repo_url: &str, _abs_work_directory: &Path) -> Result<()> {
         anyhow::bail!("Git clone is not supported in fake Fs")
     }
 
@@ -2834,15 +2893,14 @@ pub async fn copy_recursive<'a>(
             target.join(item_relative_path)
         };
         if is_dir {
-            if !options.overwrite && fs.metadata(&target_item).await.is_ok_and(|m| m.is_some()) {
+            if !options.overwrite && fs.metadata_dyn(&target_item).await.is_ok_and(|m| m.is_some()) {
                 if options.ignore_if_exists {
                     continue;
                 } else {
                     anyhow::bail!("{target_item:?} already exists");
                 }
             }
-            let _ = fs
-                .remove_dir(
+            let _ = fs.remove_dir_dyn(
                     &target_item,
                     RemoveOptions {
                         recursive: true,
@@ -2850,9 +2908,9 @@ pub async fn copy_recursive<'a>(
                     },
                 )
                 .await;
-            fs.create_dir(&target_item).await?;
+            fs.create_dir_dyn(&target_item).await?;
         } else {
-            fs.copy_file(&item, &target_item, options).await?;
+            fs.copy_file_dyn(&item, &target_item, options).await?;
         }
     }
     Ok(())
@@ -2875,14 +2933,13 @@ fn read_recursive<'a>(
     use futures::future::FutureExt;
 
     async move {
-        let metadata = fs
-            .metadata(source)
+        let metadata = fs.metadata_dyn(source)
             .await?
             .with_context(|| format!("path does not exist: {source:?}"))?;
 
         if metadata.is_dir {
             output.push((source.to_path_buf(), true));
-            let mut children = fs.read_dir(source).await?;
+            let mut children = fs.read_dir_dyn(source).await?;
             while let Some(child_path) = children.next().await {
                 if let Ok(child_path) = child_path {
                     read_recursive(fs, &child_path, output).await?;

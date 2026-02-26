@@ -39,24 +39,24 @@ async fn test_fake_fs(executor: BackgroundExecutor) {
         ]
     );
 
-    fs.create_symlink(path!("/root/dir2/link-to-dir3").as_ref(), "./dir3".into())
+    fs.create_symlink(path!("/root/dir2/link-to-dir3"), "./dir3".into())
         .await
         .unwrap();
 
     assert_eq!(
-        fs.canonicalize(path!("/root/dir2/link-to-dir3").as_ref())
+        fs.canonicalize(path!("/root/dir2/link-to-dir3"))
             .await
             .unwrap(),
         PathBuf::from(path!("/root/dir2/dir3")),
     );
     assert_eq!(
-        fs.canonicalize(path!("/root/dir2/link-to-dir3/d").as_ref())
+        fs.canonicalize(path!("/root/dir2/link-to-dir3/d"))
             .await
             .unwrap(),
         PathBuf::from(path!("/root/dir2/dir3/d")),
     );
     assert_eq!(
-        fs.load(path!("/root/dir2/link-to-dir3/d").as_ref())
+        fs.load(path!("/root/dir2/link-to-dir3/d"))
             .await
             .unwrap(),
         "D",
@@ -310,7 +310,7 @@ async fn test_copy_recursive_with_overwriting(executor: BackgroundExecutor) {
         ]
     );
     assert_eq!(
-        fs.load(path!("/outer/inner1/outer/inner1/a").as_ref())
+        fs.load(path!("/outer/inner1/outer/inner1/a"))
             .await
             .unwrap(),
         "B",
@@ -318,8 +318,7 @@ async fn test_copy_recursive_with_overwriting(executor: BackgroundExecutor) {
 
     let source = Path::new(path!("/outer"));
     let target = Path::new(path!("/outer/inner1/outer"));
-    copy_recursive(
-        fs.as_ref(),
+    copy_recursive(fs.as_ref(),
         source,
         target,
         CopyOptions {
@@ -343,7 +342,7 @@ async fn test_copy_recursive_with_overwriting(executor: BackgroundExecutor) {
         ]
     );
     assert_eq!(
-        fs.load(path!("/outer/inner1/outer/inner1/a").as_ref())
+        fs.load(path!("/outer/inner1/outer/inner1/a"))
             .await
             .unwrap(),
         "A"
@@ -382,7 +381,7 @@ async fn test_copy_recursive_with_ignoring(executor: BackgroundExecutor) {
         ]
     );
     assert_eq!(
-        fs.load(path!("/outer/inner1/outer/inner1/a").as_ref())
+        fs.load(path!("/outer/inner1/outer/inner1/a"))
             .await
             .unwrap(),
         "B",
@@ -390,8 +389,7 @@ async fn test_copy_recursive_with_ignoring(executor: BackgroundExecutor) {
 
     let source = Path::new(path!("/outer"));
     let target = Path::new(path!("/outer/inner1/outer"));
-    copy_recursive(
-        fs.as_ref(),
+    copy_recursive(fs.as_ref(),
         source,
         target,
         CopyOptions {
@@ -415,7 +413,7 @@ async fn test_copy_recursive_with_ignoring(executor: BackgroundExecutor) {
         ]
     );
     assert_eq!(
-        fs.load(path!("/outer/inner1/outer/inner1/a").as_ref())
+        fs.load(path!("/outer/inner1/outer/inner1/a"))
             .await
             .unwrap(),
         "B"

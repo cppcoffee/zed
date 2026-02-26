@@ -46,6 +46,8 @@ use futures::{
 };
 use gpui::{App, AppContext as _, AsyncApp, Global, Task, TestAppContext};
 use rpc::{AnyProtoClient, proto::Envelope};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
     sync::{
@@ -56,7 +58,7 @@ use std::{
 use util::paths::{PathStyle, RemotePathBuf};
 
 /// Unique identifier for a mock connection.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct MockConnectionOptions {
     pub id: u64,
 }

@@ -16,7 +16,9 @@ use parking_lot::Mutex;
 use paths::remote_server_dir_relative;
 use release_channel::{AppVersion, ReleaseChannel};
 use rpc::proto::Envelope;
+use schemars::JsonSchema;
 use semver::Version;
+use serde::{Deserialize, Serialize};
 pub use settings::SshPortForwardOption;
 use smol::fs;
 use std::{
@@ -45,7 +47,7 @@ pub(crate) struct SshRemoteConnection {
     _temp_dir: TempDir,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum SshConnectionHost {
     IpAddr(IpAddr),
     Hostname(String),
@@ -94,7 +96,7 @@ impl Default for SshConnectionHost {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct SshConnectionOptions {
     pub host: SshConnectionHost,
     pub username: Option<String>,

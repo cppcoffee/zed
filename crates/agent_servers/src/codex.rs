@@ -2,14 +2,23 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{any::Any, path::Path};
 
-use acp_thread::AgentConnection;
+use acp_thread::{
+    AcpThread, AgentConnection, AgentModelSelector, AgentSessionConfigOptions, AgentSessionInfo,
+    AgentSessionList, AgentSessionListRequest, AgentSessionListResponse, AgentSessionModes,
+    AgentSessionRetry, AgentSessionSetTitle, AgentSessionTruncate, AgentTelemetry, SessionListUpdate,
+    UserMessageId,
+};
 use agent_client_protocol as acp;
 use anyhow::{Context as _, Result};
 use collections::HashSet;
 use fs::Fs;
-use gpui::{App, AppContext as _, SharedString, Task};
-use project::agent_server_store::{AllAgentServersSettings, CODEX_NAME};
+use gpui::{App, AppContext as _, Entity, SharedString, Task};
+use project::{
+    Project,
+    agent_server_store::{AllAgentServersSettings, CODEX_NAME},
+};
 use settings::{SettingsStore, update_settings_file};
+use util::ResultExt as _;
 
 use crate::{AgentServer, AgentServerDelegate, load_proxy_env};
 
@@ -258,8 +267,210 @@ impl AgentServer for Codex {
                 cx,
             )
             .await?;
-            Ok((connection, login))
+            Ok((Rc::new(CodexConnection(connection)) as _, login))
         })
+    }
+
+    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}
+
+struct CodexConnection(Rc<dyn AgentConnection>);
+
+impl AgentConnection for CodexConnection {
+    fn telemetry_id(&self) -> SharedString {
+        self.0.telemetry_id()
+    }
+
+    fn new_session(
+        self: Rc<Self>,
+        project: Entity<Project>,
+        cwd: &Path,
+        cx: &mut App,
+    ) -> Task<Result<Entity<AcpThread>>> {
+        self.0.clone().new_session(project, cwd, cx)
+    }
+
+    fn supports_load_session(&self) -> bool {
+        self.0.supports_load_session()
+    }
+
+    fn load_session(
+        self: Rc<Self>,
+        session: AgentSessionInfo,
+        project: Entity<Project>,
+        cwd: &Path,
+        cx: &mut App,
+    ) -> Task<Result<Entity<AcpThread>>> {
+        self.0.clone().load_session(session, project, cwd, cx)
+    }
+
+    fn supports_close_session(&self) -> bool {
+        self.0.supports_close_session()
+    }
+
+    fn close_session(&self, session_id: &acp::SessionId, cx: &mut App) -> Task<Result<()>> {
+        self.0.close_session(session_id, cx)
+    }
+
+    fn supports_resume_session(&self) -> bool {
+        self.0.supports_resume_session()
+    }
+
+    fn resume_session(
+        self: Rc<Self>,
+        session: AgentSessionInfo,
+        project: Entity<Project>,
+        cwd: &Path,
+        cx: &mut App,
+    ) -> Task<Result<Entity<AcpThread>>> {
+        self.0.clone().resume_session(session, project, cwd, cx)
+    }
+
+    fn supports_session_history(&self) -> bool {
+        self.0.supports_session_history()
+    }
+
+    fn auth_methods(&self) -> &[acp::AuthMethod] {
+        self.0.auth_methods()
+    }
+
+    fn authenticate(&self, method: acp::AuthMethodId, cx: &mut App) -> Task<Result<()>> {
+        self.0.authenticate(method, cx)
+    }
+
+    fn prompt(
+        &self,
+        user_message_id: Option<UserMessageId>,
+        params: acp::PromptRequest,
+        cx: &mut App,
+    ) -> Task<Result<acp::PromptResponse>> {
+        self.0.prompt(user_message_id, params, cx)
+    }
+
+    fn retry(&self, session_id: &acp::SessionId, cx: &App) -> Option<Rc<dyn AgentSessionRetry>> {
+        self.0.retry(session_id, cx)
+    }
+
+    fn cancel(&self, session_id: &acp::SessionId, cx: &mut App) {
+        self.0.cancel(session_id, cx)
+    }
+
+    fn truncate(
+        &self,
+        session_id: &acp::SessionId,
+        cx: &App,
+    ) -> Option<Rc<dyn AgentSessionTruncate>> {
+        self.0.truncate(session_id, cx)
+    }
+
+    fn set_title(
+        &self,
+        session_id: &acp::SessionId,
+        cx: &App,
+    ) -> Option<Rc<dyn AgentSessionSetTitle>> {
+        self.0.set_title(session_id, cx)
+    }
+
+    fn model_selector(&self, session_id: &acp::SessionId) -> Option<Rc<dyn AgentModelSelector>> {
+        self.0.model_selector(session_id)
+    }
+
+    fn telemetry(&self) -> Option<Rc<dyn AgentTelemetry>> {
+        self.0.telemetry()
+    }
+
+    fn session_modes(
+        &self,
+        session_id: &acp::SessionId,
+        cx: &App,
+    ) -> Option<Rc<dyn AgentSessionModes>> {
+        self.0.session_modes(session_id, cx)
+    }
+
+    fn session_config_options(
+        &self,
+        session_id: &acp::SessionId,
+        cx: &App,
+    ) -> Option<Rc<dyn AgentSessionConfigOptions>> {
+        self.0.session_config_options(session_id, cx)
+    }
+
+    fn session_list(&self, cx: &mut App) -> Option<Rc<dyn AgentSessionList>> {
+        let inner = self.0.session_list(cx);
+        Some(Rc::new(CodexSessionList { inner }))
+    }
+
+    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}
+
+struct CodexSessionList {
+    inner: Option<Rc<dyn AgentSessionList>>,
+}
+
+impl AgentSessionList for CodexSessionList {
+    fn list_sessions(
+        &self,
+        request: AgentSessionListRequest,
+        cx: &mut App,
+    ) -> Task<Result<AgentSessionListResponse>> {
+        if let Some(inner) = &self.inner {
+            inner.list_sessions(request, cx)
+        } else {
+            Task::ready(Ok(AgentSessionListResponse {
+                sessions: vec![],
+                next_cursor: None,
+                meta: None,
+            }))
+        }
+    }
+
+    fn supports_delete(&self) -> bool {
+        true
+    }
+
+    fn delete_sessions(&self, cx: &mut App) -> Task<Result<()>> {
+        let inner = self.inner.clone();
+        cx.spawn(async move |cx| {
+            cx.background_executor()
+                .spawn(async move {
+                    let home = util::paths::home_dir();
+                    let codex_dir = home.join(".codex");
+                    let sessions_dir = codex_dir.join("sessions");
+                    let history_file = codex_dir.join("history.jsonl");
+
+                    if sessions_dir.exists() {
+                        smol::fs::remove_dir_all(sessions_dir).await?;
+                    }
+                    if history_file.exists() {
+                        smol::fs::remove_file(history_file).await?;
+                    }
+
+                    anyhow::Ok(())
+                })
+                .await?;
+
+            if let Some(inner) = inner {
+                inner.notify_refresh();
+            }
+            Ok(())
+        })
+    }
+
+    fn watch(
+        &self,
+        cx: &mut App,
+    ) -> Option<smol::channel::Receiver<SessionListUpdate>> {
+        self.inner.as_ref().and_then(|inner| inner.watch(cx))
+    }
+
+    fn notify_refresh(&self) {
+        if let Some(inner) = &self.inner {
+            inner.notify_refresh();
+        }
     }
 
     fn into_any(self: Rc<Self>) -> Rc<dyn Any> {

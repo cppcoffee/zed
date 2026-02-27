@@ -735,7 +735,7 @@ fn main() -> Result<()> {
 fn anonymous_fd(path: &str) -> Option<fs::File> {
     #[cfg(target_os = "linux")]
     {
-        use std::os::fd::{self, FromRawFd};
+        use std::os::fd::{self, BorrowedFd};
 
         let fd_str = path.strip_prefix("/proc/self/fd/")?;
 
@@ -745,13 +745,16 @@ fn anonymous_fd(path: &str) -> Option<fs::File> {
         }
 
         let fd: fd::RawFd = fd_str.parse().ok()?;
-        let file = unsafe { fs::File::from_raw_fd(fd) };
+        let file = unsafe { BorrowedFd::borrow_raw(fd) }
+            .try_clone_to_owned()
+            .ok()?
+            .into();
         Some(file)
     }
     #[cfg(any(target_os = "macos", target_os = "freebsd"))]
     {
         use std::os::{
-            fd::{self, FromRawFd},
+            fd::{self, BorrowedFd},
             unix::fs::FileTypeExt,
         };
 
@@ -763,7 +766,10 @@ fn anonymous_fd(path: &str) -> Option<fs::File> {
             return None;
         }
         let fd: fd::RawFd = fd_str.parse().ok()?;
-        let file = unsafe { fs::File::from_raw_fd(fd) };
+        let file = unsafe { BorrowedFd::borrow_raw(fd) }
+            .try_clone_to_owned()
+            .ok()?
+            .into();
         Some(file)
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]

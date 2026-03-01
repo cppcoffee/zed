@@ -9,14 +9,24 @@ use acp_thread::{ContentBlock, PlanEntry};
 use cloud_api_types::{SubmitAgentThreadFeedbackBody, SubmitAgentThreadFeedbackCommentsBody};
 use editor::actions::OpenExcerpts;
 use feature_flags::AcpBetaFeatureFlag;
+use project::ProjectPath;
 
 use crate::message_editor::SharedSessionCapabilities;
+<<<<<<< HEAD
 
 use gpui::List;
 use heapless::Vec as ArrayVec;
 use language_model::{LanguageModelEffortLevel, Speed};
 use settings::{SidebarSide, update_settings_file};
 use ui::{ButtonLike, SpinnerLabel, SpinnerVariant, SplitButton, SplitButtonStyle, Tab};
+=======
+use gpui::{AsyncWindowContext, Corner, List};
+use heapless::Vec as ArrayVec;
+use language_model::{LanguageModelEffortLevel, Speed};
+use settings::update_settings_file;
+use ui::{ButtonLike, SplitButton, SplitButtonStyle, Tab};
+use workspace::ItemHandle;
+>>>>>>> f72b30be4c (simpilify)
 use workspace::SERIALIZATION_THROTTLE_TIME;
 
 use super::*;
@@ -9220,26 +9230,12 @@ pub(crate) fn open_link(
                 };
 
                 let item = workspace.open_path(path, None, true, window, cx);
-                window
-                    .spawn(cx, async move |cx| {
-                        let Some(editor) = item.await?.downcast::<Editor>() else {
-                            return Ok(());
-                        };
-                        let range =
-                            Point::new(*line_range.start(), 0)..Point::new(*line_range.start(), 0);
-                        editor
-                            .update_in(cx, |editor, window, cx| {
-                                editor.change_selections(
-                                    SelectionEffects::scroll(Autoscroll::center()),
-                                    window,
-                                    cx,
-                                    |s| s.select_ranges(vec![range]),
-                                );
-                            })
-                            .ok();
-                        anyhow::Ok(())
-                    })
-                    .detach_and_log_err(cx);
+                spawn_select_in_opened_editor(
+                    item,
+                    Some(Point::new(*line_range.start(), 0)),
+                    window,
+                    cx,
+                );
             }
             MentionUri::Selection { abs_path: None, .. } => {}
             MentionUri::Thread { id, name } => {
@@ -9268,7 +9264,384 @@ pub(crate) fn open_link(
             MentionUri::GitDiff { .. } => {}
             MentionUri::MergeConflict { .. } => {}
         })
+    } else if let Some(link) = parse_local_file_link(url.as_ref()) {
+        open_local_file_link(link, url.clone(), &workspace, window, cx);
     } else {
         cx.open_url(&url);
+    }
+}
+
+fn open_local_file_link(
+    link: LocalFileLink,
+    url: SharedString,
+    workspace: &Entity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let point = link.editor_point();
+    match resolve_local_file_link(workspace, &link.abs_path, cx) {
+        LocalFileLinkResolution::Action(action) => {
+            perform_local_file_link_action(action, point, &url, workspace, window, cx);
+        }
+        LocalFileLinkResolution::NeedsLocalMetadata {
+            abs_path,
+            project_path,
+        } => {
+            spawn_local_file_link_resolution(
+                abs_path,
+                project_path,
+                point,
+                url,
+                workspace,
+                window,
+                cx,
+            );
+        }
+    }
+}
+
+fn perform_local_file_link_action(
+    action: LocalFileLinkAction,
+    point: Option<Point>,
+    url: &SharedString,
+    workspace: &Entity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    match action {
+        LocalFileLinkAction::OpenProjectFile(project_path) => {
+            workspace.update(cx, |workspace, cx| {
+                let item = workspace.open_path(project_path, None, true, window, cx);
+                spawn_select_in_opened_editor(item, point, window, cx);
+            });
+        }
+        LocalFileLinkAction::OpenAbsFile(abs_path) => {
+            workspace.update(cx, |workspace, cx| {
+                let item = workspace.open_abs_path(
+                    abs_path,
+                    workspace::OpenOptions::default(),
+                    window,
+                    cx,
+                );
+                spawn_select_in_opened_editor(item, point, window, cx);
+            });
+        }
+        LocalFileLinkAction::RevealDirectory(entry_id) => {
+            reveal_project_entry(workspace, entry_id, cx);
+        }
+        LocalFileLinkAction::OpenWithSystem => {
+            cx.open_url(url);
+        }
+        LocalFileLinkAction::Ignore => {}
+    }
+}
+
+fn spawn_local_file_link_resolution(
+    abs_path: std::path::PathBuf,
+    project_path: Option<ProjectPath>,
+    point: Option<Point>,
+    url: SharedString,
+    workspace: &Entity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let fs = workspace.read(cx).app_state().fs.clone();
+    window
+        .spawn(cx, {
+            let workspace = workspace.clone();
+            async move |cx| {
+                let Some(metadata) = fs.metadata(&abs_path).await.log_err().flatten() else {
+                    return anyhow::Ok(());
+                };
+
+                let action = local_file_link_action_from_metadata(
+                    abs_path,
+                    project_path,
+                    metadata.is_dir,
+                    &workspace,
+                    cx,
+                )?;
+                cx.update(|window, cx| {
+                    perform_local_file_link_action(action, point, &url, &workspace, window, cx);
+                })?;
+                anyhow::Ok(())
+            }
+        })
+        .detach_and_log_err(cx);
+}
+
+fn local_file_link_action_from_metadata(
+    abs_path: std::path::PathBuf,
+    project_path: Option<ProjectPath>,
+    is_directory: bool,
+    workspace: &Entity<Workspace>,
+    cx: &mut AsyncWindowContext,
+) -> anyhow::Result<LocalFileLinkAction> {
+    if is_directory {
+        if let Some(project_path) = project_path {
+            let entry_id = cx.update(|_, cx| {
+                workspace
+                    .read(cx)
+                    .project()
+                    .read(cx)
+                    .entry_for_path(&project_path, cx)
+                    .map(|entry| entry.id)
+            })?;
+            Ok(entry_id
+                .map(LocalFileLinkAction::RevealDirectory)
+                .unwrap_or(LocalFileLinkAction::OpenWithSystem))
+        } else {
+            Ok(LocalFileLinkAction::OpenWithSystem)
+        }
+    } else if let Some(project_path) = project_path {
+        Ok(LocalFileLinkAction::OpenProjectFile(project_path))
+    } else {
+        Ok(LocalFileLinkAction::OpenAbsFile(abs_path))
+    }
+}
+
+fn reveal_project_entry(workspace: &Entity<Workspace>, entry_id: ProjectEntryId, cx: &mut App) {
+    workspace.update(cx, |workspace, cx| {
+        workspace.project().update(cx, |_, cx| {
+            cx.emit(project::Event::RevealInProjectPanel(entry_id));
+        });
+    });
+}
+
+fn spawn_select_in_opened_editor(
+    item: Task<anyhow::Result<Box<dyn ItemHandle>>>,
+    point: Option<Point>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    window
+        .spawn(cx, async move |cx| {
+            let Some(editor) = item.await?.downcast::<Editor>() else {
+                return anyhow::Ok(());
+            };
+            if let Some(point) = point {
+                editor
+                    .update_in(cx, |editor, window, cx| {
+                        editor.change_selections(
+                            SelectionEffects::scroll(Autoscroll::center()),
+                            window,
+                            cx,
+                            |selections| selections.select_ranges([point..point]),
+                        );
+                    })
+                    .ok();
+            }
+            anyhow::Ok(())
+        })
+        .detach_and_log_err(cx);
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LocalFileLink {
+    abs_path: std::path::PathBuf,
+    row: Option<u32>,
+    column: Option<u32>,
+}
+
+impl LocalFileLink {
+    fn editor_point(&self) -> Option<Point> {
+        self.row.map(|row| {
+            Point::new(
+                row.saturating_sub(1),
+                self.column.unwrap_or(1).saturating_sub(1),
+            )
+        })
+    }
+}
+
+enum LocalFileLinkResolution {
+    NeedsLocalMetadata {
+        abs_path: std::path::PathBuf,
+        project_path: Option<ProjectPath>,
+    },
+    Action(LocalFileLinkAction),
+}
+
+enum LocalFileLinkAction {
+    OpenProjectFile(ProjectPath),
+    OpenAbsFile(std::path::PathBuf),
+    RevealDirectory(ProjectEntryId),
+    OpenWithSystem,
+    Ignore,
+}
+
+fn resolve_local_file_link(
+    workspace: &Entity<Workspace>,
+    abs_path: &std::path::Path,
+    cx: &App,
+) -> LocalFileLinkResolution {
+    workspace.read_with(cx, |workspace, cx| {
+        let project = workspace.project();
+        project.read_with(cx, |project, cx| {
+            let Some(project_path) = project.find_project_path(abs_path, cx) else {
+                return LocalFileLinkResolution::NeedsLocalMetadata {
+                    abs_path: abs_path.to_path_buf(),
+                    project_path: None,
+                };
+            };
+
+            if project.is_remote() {
+                let Some(entry) = project.entry_for_path(&project_path, cx) else {
+                    return LocalFileLinkResolution::Action(LocalFileLinkAction::Ignore);
+                };
+                if entry.is_dir() {
+                    LocalFileLinkResolution::Action(LocalFileLinkAction::RevealDirectory(entry.id))
+                } else {
+                    LocalFileLinkResolution::Action(LocalFileLinkAction::OpenProjectFile(
+                        project_path,
+                    ))
+                }
+            } else {
+                LocalFileLinkResolution::NeedsLocalMetadata {
+                    abs_path: abs_path.to_path_buf(),
+                    project_path: Some(project_path),
+                }
+            }
+        })
+    })
+}
+
+fn parse_local_file_link(url: &str) -> Option<LocalFileLink> {
+    if url.contains('#') {
+        return parse_hash_local_file_link(url.trim());
+    }
+
+    let path_with_position = util::paths::PathWithPosition::parse_str(url.trim());
+    if !path_with_position.path.is_absolute() {
+        return None;
+    }
+
+    Some(LocalFileLink {
+        abs_path: path_with_position.path,
+        row: path_with_position.row,
+        column: path_with_position.column,
+    })
+}
+
+fn parse_hash_local_file_link(url: &str) -> Option<LocalFileLink> {
+    let (path, fragment) = url.split_once('#')?;
+    let abs_path = std::path::PathBuf::from(path.trim());
+    if !abs_path.is_absolute() {
+        return None;
+    }
+
+    let (row, column) = parse_hash_link_position(fragment)?;
+    Some(LocalFileLink {
+        abs_path,
+        row: Some(row),
+        column,
+    })
+}
+
+fn parse_hash_link_position(fragment: &str) -> Option<(u32, Option<u32>)> {
+    let fragment = fragment.trim().trim_start_matches(['L', 'l']);
+    let (row, remainder) = parse_leading_u32(fragment)?;
+    let remainder = remainder.trim_start_matches(['L', 'l']);
+    let column = remainder
+        .strip_prefix('C')
+        .or_else(|| remainder.strip_prefix('c'))
+        .or_else(|| remainder.strip_prefix(':'))
+        .or_else(|| remainder.strip_prefix(','))
+        .and_then(|remainder| parse_leading_u32(remainder).map(|(column, _)| column));
+    Some((row, column))
+}
+
+fn parse_leading_u32(input: &str) -> Option<(u32, &str)> {
+    let digit_count = input
+        .bytes()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    if digit_count == 0 {
+        return None;
+    }
+
+    let (digits, remainder) = input.split_at(digit_count);
+    Some((digits.parse().ok()?, remainder))
+}
+
+#[cfg(test)]
+mod open_link_parsing_tests {
+    use super::{LocalFileLink, parse_local_file_link};
+    use std::path::PathBuf;
+    use util::path;
+
+    #[test]
+    fn parses_absolute_path_with_supported_position_formats() {
+        let absolute_path = path!("/Users/test/project/file.rs");
+        assert_eq!(
+            parse_local_file_link(&format!("{absolute_path}:193")),
+            Some(LocalFileLink {
+                abs_path: PathBuf::from(absolute_path),
+                row: Some(193),
+                column: None,
+            })
+        );
+        assert_eq!(
+            parse_local_file_link(&format!("{absolute_path}:193:5")),
+            Some(LocalFileLink {
+                abs_path: PathBuf::from(absolute_path),
+                row: Some(193),
+                column: Some(5),
+            })
+        );
+        assert_eq!(
+            parse_local_file_link(&format!("{absolute_path}#L193")),
+            Some(LocalFileLink {
+                abs_path: PathBuf::from(absolute_path),
+                row: Some(193),
+                column: None,
+            })
+        );
+        assert_eq!(
+            parse_local_file_link(&format!("{absolute_path}#L193C5")),
+            Some(LocalFileLink {
+                abs_path: PathBuf::from(absolute_path),
+                row: Some(193),
+                column: Some(5),
+            })
+        );
+        assert_eq!(
+            parse_local_file_link(&format!("{absolute_path}#L193:5-L200:10")),
+            Some(LocalFileLink {
+                abs_path: PathBuf::from(absolute_path),
+                row: Some(193),
+                column: Some(5),
+            })
+        );
+    }
+
+    #[test]
+    fn parses_absolute_path_without_position() {
+        let absolute_path = path!("/Users/test/project/file.rs");
+        assert_eq!(
+            parse_local_file_link(absolute_path),
+            Some(LocalFileLink {
+                abs_path: PathBuf::from(absolute_path),
+                row: None,
+                column: None,
+            })
+        );
+    }
+
+    #[test]
+    fn does_not_parse_non_absolute_or_invalid_paths() {
+        let absolute_path = path!("/Users/test/project/file.rs");
+        assert_eq!(
+            parse_local_file_link(&format!(
+                "{}:193",
+                path!("crates/git_ui/src/commit_view.rs")
+            )),
+            None
+        );
+        assert_eq!(parse_local_file_link("https://example.com"), None);
+        assert_eq!(
+            parse_local_file_link(&format!("{absolute_path}#not-a-line")),
+            None
+        );
     }
 }

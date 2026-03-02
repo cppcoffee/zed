@@ -76,6 +76,9 @@ impl AddLlmProviderInput {
             window,
             cx,
         );
+        api_key.update(cx, |input, cx| {
+            input.set_masked(true, window, cx);
+        });
 
         Self {
             provider_name,

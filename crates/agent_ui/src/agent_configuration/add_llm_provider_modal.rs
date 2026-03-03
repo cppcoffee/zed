@@ -10,7 +10,7 @@ use language_model::LanguageModelRegistry;
 use language_models::provider::open_ai_compatible::{AvailableModel, ModelCapabilities};
 use settings::{OpenAiCompatibleSettingsContent, update_settings_file};
 use ui::{
-    Banner, Checkbox, KeyBinding, Modal, ModalFooter, ModalHeader, Section, ToggleState,
+    Banner, Checkbox, IconButtonShape, KeyBinding, Modal, ModalFooter, ModalHeader, Section, ToggleState,
     WithScrollbar, prelude::*,
 };
 use ui_input::InputField;
@@ -60,6 +60,7 @@ struct AddLlmProviderInput {
     provider_name: Entity<InputField>,
     api_url: Entity<InputField>,
     api_key: Entity<InputField>,
+    mask_api_key: bool,
     models: Vec<ModelInput>,
 }
 
@@ -84,6 +85,7 @@ impl AddLlmProviderInput {
             provider_name,
             api_url,
             api_key,
+            mask_api_key: true,
             models: vec![ModelInput::new(0, window, cx)],
         }
     }
@@ -549,7 +551,36 @@ impl Render for AddLlmProviderModal {
                                     .track_scroll(&self.scroll_handle)
                                     .child(self.input.provider_name.clone())
                                     .child(self.input.api_url.clone())
-                                    .child(self.input.api_key.clone())
+                                    .child(
+                                        h_flex()
+                                            .w_full()
+                                            .gap_1()
+                                            .child(
+                                                div()
+                                                    .flex_grow()
+                                                    .child(self.input.api_key.clone())
+                                            )
+                                            .child(
+                                                IconButton::new(
+                                                    "toggle_api_key_mask",
+                                                    if self.input.mask_api_key {
+                                                        IconName::EyeOff
+                                                    } else {
+                                                        IconName::Eye
+                                                    },
+                                                )
+                                                .shape(IconButtonShape::Square)
+                                                .icon_color(Color::Muted)
+                                                .on_click(cx.listener(|this, _, window, cx| {
+                                                    this.input.mask_api_key = !this.input.mask_api_key;
+                                                    let is_masked = this.input.mask_api_key;
+                                                    this.input.api_key.update(cx, |input, cx| {
+                                                        input.set_masked(is_masked, window, cx);
+                                                    });
+                                                    cx.notify();
+                                                })),
+                                            )
+                                    )
                                     .child(self.render_model_section(cx)),
                             ),
                     )

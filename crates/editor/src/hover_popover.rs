@@ -433,25 +433,11 @@ fn show_hover(
                 None
             };
 
-            let mut hovers_response = if let Some(hover_request) = hover_request {
+            let hovers_response = if let Some(hover_request) = hover_request {
                 hover_request.await.unwrap_or_default()
             } else {
                 Vec::new()
             };
-
-            if let Some((url_range, url)) = crate::hover_links::find_url(&buffer, buffer_position, cx.clone()) {
-                let cmd_modifier = if cfg!(target_os = "macos") { "cmd" } else { "ctrl" };
-                let text = format!("{url}\n\n*{cmd_modifier}-click to open*");
-                hovers_response.push(project::Hover {
-                    contents: vec![HoverBlock {
-                        text,
-                        kind: HoverBlockKind::Markdown,
-                    }],
-                    range: Some(url_range),
-                    language: None,
-                });
-            }
-
             let snapshot = this.update_in(cx, |this, window, cx| this.snapshot(window, cx))?;
             let mut hover_highlights = Vec::with_capacity(hovers_response.len());
             let mut info_popovers = Vec::with_capacity(

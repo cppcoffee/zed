@@ -1429,10 +1429,11 @@ impl GitPanel {
                 .display(PathStyle::Posix)
                 .into_owned();
             let repository = self.active_repository.clone()?;
-            let task = self.project.update(cx, |project, cx| {
-                project.append_gitignore_entry(repository, gitignore_entry, cx)
-            })?;
-            task.detach_and_log_err(cx);
+            self.project
+                .update(cx, |project, cx| {
+                    project.append_gitignore_entry(repository, gitignore_entry, cx)
+                })
+                .detach_and_log_err(cx);
 
             Some(())
         });

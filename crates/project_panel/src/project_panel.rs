@@ -2384,10 +2384,11 @@ impl ProjectPanel {
                 repo_path.as_ref().display(PathStyle::Posix).into_owned()
             };
 
-            let task = self.project.update(cx, |project, cx| {
-                project.append_gitignore_entry(repository, gitignore_entry, cx)
-            })?;
-            task.detach_and_log_err(cx);
+            self.project
+                .update(cx, |project, cx| {
+                    project.append_gitignore_entry(repository, gitignore_entry, cx)
+                })
+                .detach_and_log_err(cx);
 
             Some(())
         });

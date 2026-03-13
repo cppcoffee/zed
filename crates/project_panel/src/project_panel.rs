@@ -15,7 +15,7 @@ use editor::{
 };
 use file_icons::FileIcons;
 use git;
-use git::{repository::RepoPath, status::GitSummary};
+use git::status::GitSummary;
 use git_ui;
 use git_ui::file_diff_view::FileDiffView;
 use gpui::{
@@ -28,7 +28,7 @@ use gpui::{
     deferred, div, hsla, linear_color_stop, linear_gradient, point, px, size, transparent_white,
     uniform_list,
 };
-use language::{Buffer, DiagnosticSeverity};
+use language::DiagnosticSeverity;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
 use notifications::status_toast::{StatusToast, ToastIcon};
 use project::{
@@ -2384,51 +2384,10 @@ impl ProjectPanel {
                 repo_path.as_ref().display(PathStyle::Posix).into_owned()
             };
 
-            let gitignore_project_path = repository
-                .read(cx)
-                .repo_path_to_project_path(&RepoPath::new(git::GITIGNORE).ok()?, cx)?;
-            let project = self.project.downgrade();
-
-            cx.spawn(async move |_, cx| {
-                let buffer: Entity<Buffer> = project
-                    .update(cx, |project, cx| {
-                        project.open_buffer(gitignore_project_path, cx)
-                    })?
-                    .await?;
-
-                let mut should_save = false;
-                buffer.update(cx, |buffer, cx| {
-                    let existing_content = buffer.text();
-
-                    if existing_content
-                        .lines()
-                        .any(|line: &str| line.trim() == gitignore_entry.as_str())
-                    {
-                        return;
-                    }
-
-                    let insert_position = existing_content.len();
-                    let new_entry = if existing_content.is_empty() {
-                        format!("{}\n", gitignore_entry)
-                    } else if existing_content.ends_with('\n') {
-                        format!("{}\n", gitignore_entry)
-                    } else {
-                        format!("\n{}\n", gitignore_entry)
-                    };
-
-                    buffer.edit([(insert_position..insert_position, new_entry)], None, cx);
-                    should_save = true;
-                });
-
-                if should_save {
-                    project
-                        .update(cx, |project, cx| project.save_buffer(buffer, cx))?
-                        .await?;
-                }
-
-                anyhow::Ok(())
-            })
-            .detach_and_log_err(cx);
+            let task = self.project.update(cx, |project, cx| {
+                project.append_gitignore_entry(repository, gitignore_entry, cx)
+            })?;
+            task.detach_and_log_err(cx);
 
             Some(())
         });

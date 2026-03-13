@@ -27,7 +27,7 @@ mod environment;
 use buffer_diff::BufferDiff;
 use context_server_store::ContextServerStore;
 pub use environment::ProjectEnvironmentEvent;
-use git::repository::get_git_committer;
+use git::repository::{RepoPath, get_git_committer};
 use git_store::{Repository, RepositoryId};
 pub mod search_history;
 pub mod yarn;
@@ -3111,6 +3111,59 @@ impl Project {
     pub fn save_buffer(&self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Task<Result<()>> {
         self.buffer_store
             .update(cx, |buffer_store, cx| buffer_store.save_buffer(buffer, cx))
+    }
+
+    pub fn append_gitignore_entry(
+        &mut self,
+        repository: Entity<Repository>,
+        gitignore_entry: String,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<()>> {
+        let gitignore_repo_path = match RepoPath::new(git::GITIGNORE) {
+            Ok(path) => path,
+            Err(error) => return Task::ready(Err(error)),
+        };
+        let gitignore_project_path = match repository
+            .read(cx)
+            .repo_path_to_project_path(&gitignore_repo_path, cx)
+        {
+            Some(path) => path,
+            None => {
+                return Task::ready(Err(anyhow!("could not locate repository root .gitignore")));
+            }
+        };
+
+        let open_buffer = self.open_buffer(gitignore_project_path, cx);
+        cx.spawn(async move |this, cx| {
+            let buffer = open_buffer.await?;
+            let should_save = buffer.update(cx, |buffer, cx| {
+                let existing_content = buffer.text();
+
+                if existing_content
+                    .lines()
+                    .any(|line: &str| line.trim() == gitignore_entry)
+                {
+                    return false;
+                }
+
+                let insert_position = existing_content.len();
+                let new_entry = if existing_content.is_empty() || existing_content.ends_with('\n') {
+                    format!("{}\n", gitignore_entry)
+                } else {
+                    format!("\n{}\n", gitignore_entry)
+                };
+
+                buffer.edit([(insert_position..insert_position, new_entry)], None, cx);
+                true
+            });
+
+            if should_save {
+                this.update(cx, |this, cx| this.save_buffer(buffer, cx))?
+                    .await?;
+            }
+
+            Ok(())
+        })
     }
 
     pub fn save_buffer_as(

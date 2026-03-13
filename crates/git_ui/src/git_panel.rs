@@ -1423,58 +1423,16 @@ impl GitPanel {
                 return Some(());
             }
 
-            let project = self.project.downgrade();
-            let repo_path = entry.repo_path;
-            let active_repository = self.active_repository.as_ref()?.downgrade();
-
-            cx.spawn(async move |_, cx| {
-                let file_path_str = repo_path.as_ref().display(PathStyle::Posix);
-
-                let repo_root = active_repository.read_with(cx, |repository, _| {
-                    repository.snapshot().work_directory_abs_path
-                })?;
-
-                let gitignore_abs_path = repo_root.join(".gitignore");
-
-                let buffer: Entity<Buffer> = project
-                    .update(cx, |project, cx| {
-                        project.open_local_buffer(gitignore_abs_path, cx)
-                    })?
-                    .await?;
-
-                let mut should_save = false;
-                buffer.update(cx, |buffer, cx| {
-                    let existing_content = buffer.text();
-
-                    if existing_content
-                        .lines()
-                        .any(|line: &str| line.trim() == file_path_str)
-                    {
-                        return;
-                    }
-
-                    let insert_position = existing_content.len();
-                    let new_entry = if existing_content.is_empty() {
-                        format!("{}\n", file_path_str)
-                    } else if existing_content.ends_with('\n') {
-                        format!("{}\n", file_path_str)
-                    } else {
-                        format!("\n{}\n", file_path_str)
-                    };
-
-                    buffer.edit([(insert_position..insert_position, new_entry)], None, cx);
-                    should_save = true;
-                });
-
-                if should_save {
-                    project
-                        .update(cx, |project, cx| project.save_buffer(buffer, cx))?
-                        .await?;
-                }
-
-                anyhow::Ok(())
-            })
-            .detach_and_log_err(cx);
+            let gitignore_entry = entry
+                .repo_path
+                .as_ref()
+                .display(PathStyle::Posix)
+                .into_owned();
+            let repository = self.active_repository.clone()?;
+            let task = self.project.update(cx, |project, cx| {
+                project.append_gitignore_entry(repository, gitignore_entry, cx)
+            })?;
+            task.detach_and_log_err(cx);
 
             Some(())
         });

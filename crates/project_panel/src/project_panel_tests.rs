@@ -5112,6 +5112,116 @@ async fn test_gitignored_and_always_included(cx: &mut gpui::TestAppContext) {
 }
 
 #[gpui::test]
+async fn test_add_directory_to_gitignore(cx: &mut gpui::TestAppContext) {
+    init_test(cx);
+
+    let fs = FakeFs::new(cx.executor());
+    fs.insert_tree(
+        path!("/root"),
+        json!({
+            ".git": {
+                "HEAD": "ref: refs/heads/main\n",
+            },
+            "src": {
+                "generated": {
+                    "example.rs": "",
+                },
+            },
+        }),
+    )
+    .await;
+
+    let project = Project::test(fs.clone(), [path!("/root").as_ref()], cx).await;
+    let window = cx.add_window(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
+    let workspace = window
+        .read_with(cx, |mw, _| mw.workspace().clone())
+        .unwrap();
+    let cx = &mut VisualTestContext::from_window(window.into(), cx);
+    let panel = workspace.update_in(cx, ProjectPanel::new);
+    cx.run_until_parked();
+
+    toggle_expand_dir(&panel, "root/src", cx);
+    select_path(&panel, "root/src/generated", cx);
+
+    panel.update_in(cx, |panel, window, cx| {
+        panel.add_to_gitignore(&git::AddToGitignore, window, cx);
+    });
+    cx.run_until_parked();
+
+    assert_eq!(
+        fs.load(Path::new("/root/.gitignore")).await.unwrap(),
+        "src/generated/\n",
+        "selected directories should be written to the repository root .gitignore"
+    );
+
+    panel.update_in(cx, |panel, window, cx| {
+        panel.add_to_gitignore(&git::AddToGitignore, window, cx);
+    });
+    cx.run_until_parked();
+
+    assert_eq!(
+        fs.load(Path::new("/root/.gitignore")).await.unwrap(),
+        "src/generated/\n",
+        "adding the same directory twice should not duplicate the gitignore entry"
+    );
+}
+
+#[gpui::test]
+async fn test_add_to_gitignore_context_menu_is_disabled_for_ignored_entries(
+    cx: &mut gpui::TestAppContext,
+) {
+    init_test(cx);
+
+    let fs = FakeFs::new(cx.executor());
+    fs.insert_tree(
+        path!("/root"),
+        json!({
+            ".git": {
+                "HEAD": "ref: refs/heads/main\n",
+            },
+            ".gitignore": "ignored.txt\n",
+            "ignored.txt": "",
+        }),
+    )
+    .await;
+
+    let project = Project::test(fs.clone(), [path!("/root").as_ref()], cx).await;
+    let window = cx.add_window(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
+    let workspace = window
+        .read_with(cx, |mw, _| mw.workspace().clone())
+        .unwrap();
+    let cx = &mut VisualTestContext::from_window(window.into(), cx);
+    let panel = workspace.update_in(cx, ProjectPanel::new);
+    cx.run_until_parked();
+
+    let ignored_entry_id = find_project_entry(&panel, "root/ignored.txt", cx)
+        .expect("ignored file entry should exist for this test");
+
+    panel.update_in(cx, |panel, window, cx| {
+        panel.deploy_context_menu(
+            gpui::point(gpui::px(1.), gpui::px(1.)),
+            ignored_entry_id,
+            window,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+
+    panel.update(cx, |panel, cx| {
+        let (context_menu, _, _) = panel
+            .context_menu
+            .as_ref()
+            .expect("context menu should be open after deployment");
+
+        assert_eq!(
+            context_menu.read(cx).entry_disabled("Add to .gitignore"),
+            Some(true),
+            "ignored entries should show Add to .gitignore as disabled"
+        );
+    });
+}
+
+#[gpui::test]
 async fn test_explicit_reveal(cx: &mut gpui::TestAppContext) {
     init_test_with_editor(cx);
     cx.update(|cx| {

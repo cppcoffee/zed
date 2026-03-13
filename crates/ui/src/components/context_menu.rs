@@ -878,6 +878,17 @@ impl ContextMenu {
         self.selected_index
     }
 
+    pub fn entry_disabled(&self, label: &str) -> Option<bool> {
+        self.items.iter().find_map(|item| match item {
+            ContextMenuItem::Entry(ContextMenuEntry {
+                label: entry_label,
+                disabled,
+                ..
+            }) if entry_label.as_ref() == label => Some(*disabled),
+            _ => None,
+        })
+    }
+
     pub fn confirm(&mut self, _: &menu::Confirm, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.selected_index else {
             return;

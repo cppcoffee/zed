@@ -15,7 +15,7 @@ use editor::{
 };
 use file_icons::FileIcons;
 use git;
-use git::status::GitSummary;
+use git::{repository::RepoPath, status::GitSummary};
 use git_ui;
 use git_ui::file_diff_view::FileDiffView;
 use gpui::{
@@ -28,7 +28,7 @@ use gpui::{
     deferred, div, hsla, linear_color_stop, linear_gradient, point, px, size, transparent_white,
     uniform_list,
 };
-use language::DiagnosticSeverity;
+use language::{Buffer, DiagnosticSeverity};
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
 use notifications::status_toast::{StatusToast, ToastIcon};
 use project::{
@@ -1173,7 +1173,7 @@ impl ProjectPanel {
                     || (settings.hide_root && visible_worktrees_count == 1));
             let should_show_compare = !is_dir && self.file_abs_paths_to_diff(cx).is_some();
 
-            let has_git_repo = !is_dir && {
+            let git_repository_for_entry = {
                 let project_path = project::ProjectPath {
                     worktree_id,
                     path: entry.path.clone(),
@@ -1182,8 +1182,14 @@ impl ProjectPanel {
                     .git_store()
                     .read(cx)
                     .repository_and_path_for_project_path(&project_path, cx)
-                    .is_some()
             };
+            let has_git_repo = git_repository_for_entry.is_some();
+            let can_view_file_history = !is_dir && has_git_repo;
+            let can_show_add_to_gitignore = has_git_repo;
+            let add_to_gitignore_disabled = entry.is_ignored
+                || git_repository_for_entry
+                    .as_ref()
+                    .is_some_and(|(_, repo_path)| repo_path.is_empty());
 
             let entity = cx.entity();
             let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
@@ -1252,9 +1258,18 @@ impl ProjectPanel {
                                     Box::new(git::RestoreFile { skip_prompt: false }),
                                 )
                             })
-                            .when(has_git_repo, |menu| {
+                            .when(can_view_file_history || can_show_add_to_gitignore, |menu| {
                                 menu.separator()
-                                    .action("View File History", Box::new(git::FileHistory))
+                                    .when(can_view_file_history, |menu| {
+                                        menu.action("View File History", Box::new(git::FileHistory))
+                                    })
+                                    .when(can_show_add_to_gitignore, |menu| {
+                                        menu.action_disabled_when(
+                                            add_to_gitignore_disabled,
+                                            "Add to .gitignore",
+                                            Box::new(git::AddToGitignore),
+                                        )
+                                    })
                             })
                             .when(!should_hide_rename, |menu| {
                                 menu.separator().action("Rename", Box::new(Rename))
@@ -2330,6 +2345,86 @@ impl ProjectPanel {
                         })
                     })
                     .ok();
+
+                anyhow::Ok(())
+            })
+            .detach_and_log_err(cx);
+
+            Some(())
+        });
+    }
+
+    fn add_to_gitignore(
+        &mut self,
+        _: &git::AddToGitignore,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        maybe!({
+            let project = self.project.read(cx);
+            let (_worktree, entry) = self.selected_sub_entry(cx)?;
+            if entry.is_ignored {
+                return None;
+            }
+
+            let project_path = project.path_for_entry(entry.id, cx)?;
+
+            let (repository, repo_path) = project
+                .git_store()
+                .read(cx)
+                .repository_and_path_for_project_path(&project_path, cx)?;
+
+            if repo_path.is_empty() {
+                return None;
+            }
+
+            let gitignore_entry = if entry.is_dir() {
+                format!("{}/", repo_path.as_ref().display(PathStyle::Posix))
+            } else {
+                repo_path.as_ref().display(PathStyle::Posix).into_owned()
+            };
+
+            let gitignore_project_path = repository
+                .read(cx)
+                .repo_path_to_project_path(&RepoPath::new(git::GITIGNORE).ok()?, cx)?;
+            let project = self.project.downgrade();
+
+            cx.spawn(async move |_, cx| {
+                let buffer: Entity<Buffer> = project
+                    .update(cx, |project, cx| {
+                        project.open_buffer(gitignore_project_path, cx)
+                    })?
+                    .await?;
+
+                let mut should_save = false;
+                buffer.update(cx, |buffer, cx| {
+                    let existing_content = buffer.text();
+
+                    if existing_content
+                        .lines()
+                        .any(|line: &str| line.trim() == gitignore_entry.as_str())
+                    {
+                        return;
+                    }
+
+                    let insert_position = existing_content.len();
+                    let new_entry = if existing_content.is_empty() {
+                        format!("{}\n", gitignore_entry)
+                    } else if existing_content.ends_with('\n') {
+                        format!("{}\n", gitignore_entry)
+                    } else {
+                        format!("\n{}\n", gitignore_entry)
+                    };
+
+                    buffer.edit([(insert_position..insert_position, new_entry)], None, cx);
+                    should_save = true;
+                });
+
+                if should_save {
+                    project
+                        .update(cx, |project, cx| project.save_buffer(buffer, cx))?
+                        .await?;
+                }
 
                 anyhow::Ok(())
             })
@@ -6461,6 +6556,7 @@ impl Render for ProjectPanel {
                         .on_action(cx.listener(Self::copy))
                         .on_action(cx.listener(Self::paste))
                         .on_action(cx.listener(Self::duplicate))
+                        .on_action(cx.listener(Self::add_to_gitignore))
                         .on_action(cx.listener(Self::restore_file))
                         .when(!project.is_remote(), |el| {
                             el.on_action(cx.listener(Self::trash))

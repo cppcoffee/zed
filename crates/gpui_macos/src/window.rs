@@ -2507,11 +2507,7 @@ extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
 
 extern "C" fn dragging_ended(this: &Object, _: Sel, _: id) {
     let window_state = unsafe { get_window_state(this) };
-    send_new_event(
-        &window_state,
-        PlatformInput::FileDrop(FileDropEvent::Exited),
-    );
-    window_state.lock().external_files_dragged = false;
+    send_file_drop_event(window_state, FileDropEvent::Exited);
 }
 
 extern "C" fn perform_drag_operation(this: &Object, _: Sel, dragging_info: id) -> BOOL {

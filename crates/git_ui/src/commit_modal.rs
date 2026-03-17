@@ -263,12 +263,14 @@ impl CommitModal {
         &self,
         id: impl Into<ElementId>,
         keybinding_target: Option<FocusHandle>,
+        disabled: bool,
     ) -> impl IntoElement {
         PopoverMenu::new(id.into())
             .trigger(
                 ui::ButtonLike::new_rounded_right("commit-split-button-right")
                     .layer(ui::ElevationIndex::ModalSurface)
                     .size(ui::ButtonSize::None)
+                    .disabled(disabled)
                     .child(
                         div()
                             .px_1()
@@ -338,6 +340,7 @@ impl CommitModal {
             is_amend_pending,
             is_signoff_enabled,
             workspace,
+            is_generating,
         ) = self.git_panel.update(cx, |git_panel, cx| {
             let (can_commit, tooltip) = git_panel.configure_commit_button(cx);
             let title = git_panel.commit_button_title();
@@ -346,6 +349,7 @@ impl CommitModal {
             let active_repo = git_panel.active_repository.clone();
             let is_amend_pending = git_panel.amend_pending();
             let is_signoff_enabled = git_panel.signoff_enabled();
+            let is_generating = git_panel.is_generating_commit_message();
             (
                 can_commit,
                 tooltip,
@@ -356,6 +360,7 @@ impl CommitModal {
                 is_amend_pending,
                 is_signoff_enabled,
                 git_panel.workspace.clone(),
+                is_generating,
             )
         });
 
@@ -488,6 +493,7 @@ impl CommitModal {
                         self.render_git_commit_menu(
                             ElementId::Name(format!("split-button-right-{}", commit_label).into()),
                             Some(focus_handle),
+                            is_generating,
                         )
                         .into_any_element(),
                     )),

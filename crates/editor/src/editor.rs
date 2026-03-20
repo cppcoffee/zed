@@ -6557,7 +6557,6 @@ impl Editor {
             .borrow()
             .get(candidate_id)?
             .clone();
-        cx.stop_propagation();
 
         let buffer_handle = completions_menu.buffer.clone();
 
@@ -6575,15 +6574,26 @@ impl Editor {
 
         let buffer = buffer_handle.read(cx);
         let snapshot = self.buffer.read(cx).snapshot(cx);
+        let completion_position = completions_menu.initial_position;
         let newest_anchor = self.selections.newest_anchor();
-        let replace_range_multibuffer = {
-            let mut excerpt = snapshot.excerpt_containing(newest_anchor.range()).unwrap();
-            excerpt.map_range_from_buffer(replace_range.clone())
-        };
-        if snapshot.buffer_id_for_anchor(newest_anchor.head()) != Some(buffer.remote_id()) {
+        if newest_anchor
+            .start
+            .cmp(&completion_position, &snapshot)
+            .is_ne()
+        {
             return None;
         }
-
+        if snapshot.buffer_id_for_anchor(completion_position) != Some(buffer.remote_id()) {
+            return None;
+        }
+        let replace_range_multibuffer = {
+            let Some(mut excerpt) =
+                snapshot.excerpt_containing(completion_position..completion_position)
+            else {
+                return None;
+            };
+            excerpt.map_range_from_buffer(replace_range.clone())
+        };
         let old_text = buffer
             .text_for_range(replace_range.clone())
             .collect::<String>();
@@ -6598,6 +6608,7 @@ impl Editor {
             .saturating_sub(newest_anchor.end.text_anchor.to_offset(buffer));
         let prefix = &old_text[..old_text.len().saturating_sub(lookahead)];
         let suffix = &old_text[lookbehind.min(old_text.len())..];
+        cx.stop_propagation();
 
         let selections = self
             .selections

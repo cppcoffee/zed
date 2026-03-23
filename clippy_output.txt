@@ -1,0 +1,12 @@
+    Checking git_ui v0.1.0 (/app/crates/git_ui)
+    Checking title_bar v0.1.0 (/app/crates/title_bar)
+    Checking project_panel v0.1.0 (/app/crates/project_panel)
+    Checking git_graph v0.1.0 (/app/crates/git_graph)
+    Checking collab_ui v0.1.0 (/app/crates/collab_ui)
+    Checking settings_ui v0.1.0 (/app/crates/settings_ui)
+    Checking file_finder v0.1.0 (/app/crates/file_finder)
+    Checking vim v0.1.0 (/app/crates/vim)
+    Checking collab v0.44.0 (/app/crates/collab)
+    Checking zed v0.228.0 (/app/crates/zed)
+    Checking storybook v0.1.0 (/app/crates/storybook)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 33.57s

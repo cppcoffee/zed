@@ -2952,18 +2952,16 @@ impl LocalLspStore {
         file_url: &lsp::Uri,
         cx: &mut App,
     ) {
-        buffer.update(cx, |buffer, cx| {
-            let mut snapshots = self.buffer_snapshots.remove(&buffer.remote_id());
-
-            for (_, language_server) in self.language_servers_for_buffer(buffer, cx) {
-                if snapshots
-                    .as_mut()
-                    .is_some_and(|map| map.remove(&language_server.server_id()).is_some())
+        let buffer_id = buffer.read(cx).remote_id();
+        if let Some(snapshots) = self.buffer_snapshots.remove(&buffer_id) {
+            for (server_id, _) in snapshots {
+                if let Some(LanguageServerState::Running { server, .. }) =
+                    self.language_servers.get(&server_id)
                 {
-                    language_server.unregister_buffer(file_url.clone());
+                    server.unregister_buffer(file_url.clone());
                 }
             }
-        });
+        }
     }
 
     fn buffer_snapshot_for_lsp_version(

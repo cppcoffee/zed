@@ -1,0 +1,300 @@
+Clone found (rust):
+ - [1m[32mcrates/agent/src/edit_agent/evals/fixtures/from_pixels_constructor/before.rs[39m[22m [1:1 - 339:2] (338 lines, 2887 tokens)
+   [1m[32mcrates/agent/src/edit_agent/evals/fixtures/translate_doc_comments/before.rs[39m[22m [1:1 - 339:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/agent/src/edit_agent/evals/fixtures/delete_run_git_blame/before.rs[39m[22m [1:1 - 371:2] (370 lines, 3157 tokens)
+   [1m[32mcrates/agent/src/edit_agent/evals/fixtures/extract_handle_command_output/before.rs[39m[22m [1:1 - 371:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/agent/src/edit_agent/evals/fixtures/delete_run_git_blame/after.rs[39m[22m [1:1 - 66:72] (65 lines, 584 tokens)
+   [1m[32mcrates/agent/src/edit_agent/evals/fixtures/extract_handle_command_output/before.rs[39m[22m [1:1 - 66:6]
+--
+Clone found (rust):
+ - [1m[32mcrates/agent/src/edit_agent/evals/fixtures/delete_run_git_blame/after.rs[39m[22m [66:1 - 328:2] (262 lines, 2193 tokens)
+   [1m[32mcrates/agent/src/edit_agent/evals/fixtures/extract_handle_command_output/before.rs[39m[22m [109:1 - 371:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/ui/src/components/list/list_header.rs[39m[22m [39:5 - 69:6] (30 lines, 335 tokens)
+   [1m[32mcrates/ui/src/components/list/list_item.rs[39m[22m [143:5 - 173:9]
+--
+Clone found (rust):
+ - [1m[32mcrates/ui/src/components/label/loading_label.rs[39m[22m [21:2 - 83:13] (62 lines, 529 tokens)
+   [1m[32mcrates/ui/src/components/label/spinner_label.rs[39m[22m [100:2 - 162:13]
+--
+Clone found (rust):
+ - [1m[32mcrates/ui/src/components/label/highlighted_label.rs[39m[22m [46:5 - 75:17] (29 lines, 286 tokens)
+   [1m[32mcrates/ui/src/components/label/label.rs[39m[22m [77:5 - 106:6]
+--
+Clone found (rust):
+ - [1m[32mcrates/ui/src/components/label/highlighted_label.rs[39m[22m [75:2 - 137:4] (62 lines, 523 tokens)
+   [1m[32mcrates/ui/src/components/label/spinner_label.rs[39m[22m [100:2 - 162:5]
+--
+Clone found (rust):
+ - [1m[32mcrates/ui/src/components/button/toggle_button.rs[39m[22m [599:20 - 636:6] (37 lines, 238 tokens)
+   [1m[32mcrates/ui/src/components/button/toggle_button.rs[39m[22m [493:26 - 530:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/ui/src/components/button/toggle_button.rs[39m[22m [701:7 - 744:6] (43 lines, 268 tokens)
+   [1m[32mcrates/ui/src/components/button/toggle_button.rs[39m[22m [593:9 - 530:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/migrator/src/migrations/m_2025_04_15/keymap.rs[39m[22m [1:1 - 28:73] (27 lines, 254 tokens)
+   [1m[32mcrates/migrator/src/migrations/m_2025_12_08/keymap.rs[39m[22m [1:1 - 28:7]
+--
+Clone found (rust):
+ - [1m[32mcrates/migrator/src/migrations/m_2025_03_03/keymap.rs[39m[22m [1:1 - 25:3] (24 lines, 249 tokens)
+   [1m[32mcrates/migrator/src/migrations/m_2025_12_08/keymap.rs[39m[22m [1:1 - 25:5]
+--
+Clone found (rust):
+ - [1m[32mcrates/migrator/src/migrations/m_2025_01_02/settings.rs[39m[22m [13:35 - 39:17] (26 lines, 239 tokens)
+   [1m[32mcrates/migrator/src/migrations/m_2025_01_30/settings.rs[39m[22m [44:39 - 70:3]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_5_0.rs[39m[22m [35:28 - 106:18] (71 lines, 660 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [37:28 - 108:5]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_5_0.rs[39m[22m [104:1 - 218:2] (114 lines, 1025 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [264:2 - 378:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_4_0.rs[39m[22m [34:28 - 217:2] (183 lines, 1680 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [37:28 - 378:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_3_0.rs[39m[22m [34:28 - 217:2] (183 lines, 1680 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [37:28 - 378:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_2_0.rs[39m[22m [51:4 - 87:6] (36 lines, 296 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [72:15 - 108:7]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_2_0.rs[39m[22m [119:2 - 195:7] (76 lines, 683 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_5_0.rs[39m[22m [101:13 - 337:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_2_0.rs[39m[22m [195:2 - 238:2] (43 lines, 355 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [335:1 - 378:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_1_0.rs[39m[22m [51:3 - 136:5] (85 lines, 755 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_2_0.rs[39m[22m [39:22 - 124:18]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_1_0.rs[39m[22m [142:2 - 190:7] (48 lines, 735 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [182:12 - 230:11]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_1_0.rs[39m[22m [194:2 - 233:18] (39 lines, 621 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [225:6 - 264:4]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_1_0.rs[39m[22m [246:9 - 293:12] (47 lines, 433 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [292:9 - 197:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_6.rs[39m[22m [30:17 - 115:13] (85 lines, 755 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_2_0.rs[39m[22m [39:22 - 124:18]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_6.rs[39m[22m [112:5 - 197:2] (85 lines, 761 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [293:5 - 378:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_4.rs[39m[22m [71:5 - 101:17] (30 lines, 284 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [308:5 - 338:13]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_4.rs[39m[22m [136:5 - 164:2] (28 lines, 235 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_6_0.rs[39m[22m [349:9 - 378:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_1.rs[39m[22m [17:36 - 43:13] (26 lines, 267 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_4.rs[39m[22m [15:36 - 41:33]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_1.rs[39m[22m [48:9 - 87:3] (39 lines, 347 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_4.rs[39m[22m [56:9 - 332:47]
+--
+Clone found (rust):
+ - [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_1.rs[39m[22m [87:9 - 135:4] (48 lines, 467 tokens)
+   [1m[32mcrates/extension_host/src/wasm_host/wit/since_v0_0_4.rs[39m[22m [96:9 - 144:7]
+--
+Clone found (rust):
+ - [1m[32mcrates/debugger_ui/src/session/running/module_list.rs[39m[22m [189:9 - 250:12] (61 lines, 586 tokens)
+   [1m[32mcrates/debugger_ui/src/session/running/stack_frame_list.rs[39m[22m [752:9 - 813:24]
+--
+Clone found (rust):
+ - [1m[32mcrates/collab/tests/integration/db_tests/channel_tests.rs[39m[22m [804:5 - 828:7] (24 lines, 228 tokens)
+   [1m[32mcrates/collab/tests/integration/db_tests/channel_tests.rs[39m[22m [728:2 - 752:8]
+--
+Clone found (rust):
+ - [1m[32mcrates/collab/tests/integration/db_tests/channel_tests.rs[39m[22m [843:5 - 877:12] (34 lines, 312 tokens)
+   [1m[32mcrates/collab/tests/integration/db_tests/channel_tests.rs[39m[22m [730:5 - 764:18]
+--
+Clone found (rust):
+ - [1m[32mcrates/collab/tests/integration/db_tests/channel_tests.rs[39m[22m [905:6 - 936:6] (31 lines, 271 tokens)
+   [1m[32mcrates/collab/tests/integration/db_tests/channel_tests.rs[39m[22m [722:7 - 829:7]
+--
+Clone found (rust):
+ - [1m[32mcrates/vim/src/normal/convert.rs[39m[22m [99:2 - 122:19] (23 lines, 239 tokens)
+   [1m[32mcrates/vim/src/normal/convert.rs[39m[22m [48:14 - 71:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/vim/src/helix/surround.rs[39m[22m [179:12 - 199:7] (20 lines, 261 tokens)
+   [1m[32mcrates/vim/src/helix/surround.rs[39m[22m [125:9 - 145:9]
+--
+Clone found (rust):
+ - [1m[32mcrates/ui/src/components/tree_view_item.rs[39m[22m [50:2 - 80:10] (30 lines, 310 tokens)
+   [1m[32mcrates/ui/src/components/list/list_item.rs[39m[22m [100:5 - 130:6]
+--
+Clone found (rust):
+ - [1m[32mcrates/repl/src/outputs/json.rs[39m[22m [130:4 - 161:4] (31 lines, 253 tokens)
+   [1m[32mcrates/repl/src/outputs/json.rs[39m[22m [70:4 - 101:4]
+--
+Clone found (rust):
+ - [1m[32mcrates/repl/src/kernels/ssh_kernel.rs[39m[22m [265:2 - 294:3] (29 lines, 243 tokens)
+   [1m[32mcrates/repl/src/kernels/wsl_kernel.rs[39m[22m [446:2 - 475:4]
+--
+Clone found (rust):
+ - [1m[32mcrates/repl/src/kernels/native_kernel.rs[39m[22m [258:2 - 288:5] (30 lines, 270 tokens)
+   [1m[32mcrates/repl/src/kernels/wsl_kernel.rs[39m[22m [446:2 - 476:21]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [164:9 - 192:55] (28 lines, 276 tokens)
+   [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [47:2 - 73:43]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [207:2 - 234:55] (27 lines, 227 tokens)
+   [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [106:5 - 131:43]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [467:43 - 521:8] (54 lines, 552 tokens)
+   [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [394:50 - 448:9]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [634:2 - 656:4] (22 lines, 218 tokens)
+   [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [48:2 - 70:4]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [704:32 - 740:33] (36 lines, 446 tokens)
+   [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [37:27 - 73:43]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [887:19 - 911:8] (24 lines, 234 tokens)
+   [1m[32mcrates/project/tests/integration/trusted_worktrees.rs[39m[22m [47:2 - 70:4]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [158:45 - 192:2] (34 lines, 301 tokens)
+   [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [105:45 - 139:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [211:45 - 246:2] (35 lines, 311 tokens)
+   [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [105:45 - 193:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [264:45 - 299:5] (35 lines, 309 tokens)
+   [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [105:45 - 193:5]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [317:45 - 350:4] (33 lines, 292 tokens)
+   [1m[32mcrates/project/tests/integration/signature_help.rs[39m[22m [105:45 - 138:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/src/lsp_store/rust_analyzer_ext.rs[39m[22m [133:13 - 159:10] (26 lines, 300 tokens)
+   [1m[32mcrates/project/src/lsp_store/rust_analyzer_ext.rs[39m[22m [84:16 - 110:8]
+--
+Clone found (rust):
+ - [1m[32mcrates/project/src/lsp_store/rust_analyzer_ext.rs[39m[22m [190:15 - 216:20] (26 lines, 307 tokens)
+   [1m[32mcrates/project/src/lsp_store/rust_analyzer_ext.rs[39m[22m [84:16 - 110:21]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/vercel_ai_gateway.rs[39m[22m [203:2 - 236:29] (33 lines, 304 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [155:13 - 188:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/vercel.rs[39m[22m [149:22 - 184:20] (35 lines, 311 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [153:20 - 188:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/vercel.rs[39m[22m [280:20 - 314:20] (34 lines, 255 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [300:17 - 334:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/vercel.rs[39m[22m [371:55 - 446:28] (75 lines, 763 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [377:56 - 452:25]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/open_ai_compatible.rs[39m[22m [165:2 - 193:30] (28 lines, 275 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [160:6 - 188:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/open_ai_compatible.rs[39m[22m [424:13 - 462:6] (38 lines, 337 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [379:10 - 417:7]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/open_ai_compatible.rs[39m[22m [462:6 - 486:8] (24 lines, 268 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [417:7 - 441:4]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/mistral.rs[39m[22m [188:2 - 216:21] (28 lines, 274 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [160:2 - 188:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/mistral.rs[39m[22m [750:2 - 801:7] (51 lines, 490 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [380:2 - 430:6]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/mistral.rs[39m[22m [787:9 - 812:29] (25 lines, 277 tokens)
+   [1m[32mcrates/language_models/src/provider/vercel_ai_gateway.rs[39m[22m [624:9 - 649:21]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/deepseek.rs[39m[22m [156:18 - 191:22] (35 lines, 311 tokens)
+   [1m[32mcrates/language_models/src/provider/x_ai.rs[39m[22m [153:20 - 188:17]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/deepseek.rs[39m[22m [262:14 - 310:8] (48 lines, 380 tokens)
+   [1m[32mcrates/language_models/src/provider/mistral.rs[39m[22m [296:13 - 344:2]
+--
+Clone found (rust):
+ - [1m[32mcrates/language_models/src/provider/deepseek.rs[39m[22m [468:6 - 505:6] (37 lines, 311 tokens)
+   [1m[32mcrates/language_models/src/provider/mistral.rs[39m[22m [638:9 - 676:3]
+--
+Clone found (rust):
+ - [1m[32mcrates/gpui/src/app/headless_app_context.rs[39m[22m [230:68 - 273:4] (43 lines, 443 tokens)
+   [1m[32mcrates/gpui/src/app/visual_test_context.rs[39m[22m [430:79 - 473:9]
+--
+Clone found (rust):
+ - [1m[32mcrates/git_hosting_providers/src/providers/gitee.rs[39m[22m [98:9 - 131:10] (33 lines, 266 tokens)
+   [1m[32mcrates/git_hosting_providers/src/providers/github.rs[39m[22m [193:9 - 226:3]
+--
+Clone found (rust):
+ - [1m[32mcrates/git_hosting_providers/src/providers/gitea.rs[39m[22m [133:2 - 170:41] (37 lines, 299 tokens)
+   [1m[32mcrates/git_hosting_providers/src/providers/gitee.rs[39m[22m [92:2 - 129:35]
+--
+Clone found (rust):
+ - [1m[32mcrates/git_hosting_providers/src/providers/forgejo.rs[39m[22m [159:2 - 241:28] (82 lines, 677 tokens)
+   [1m[32mcrates/git_hosting_providers/src/providers/gitea.rs[39m[22m [108:2 - 190:26]
+--
+Clone found (rust):
+ - [1m[32mcrates/fs/tests/integration/fs.rs[39m[22m [358:34 - 402:17] (44 lines, 303 tokens)
+   [1m[32mcrates/fs/tests/integration/fs.rs[39m[22m [286:37 - 330:10]
+--
+Clone found (rust):
+ - [1m[32mcrates/editor/src/test/editor_lsp_test_context.rs[39m[22m [337:2 - 389:9] (52 lines, 386 tokens)
+   [1m[32mcrates/editor/src/test/editor_lsp_test_context.rs[39m[22m [223:2 - 275:8]
+--
+Clone found (rust):
+ - [1m[32mcrates/collab/tests/integration/channel_buffer_tests.rs[39m[22m [459:27 - 488:17] (29 lines, 258 tokens)
+   [1m[32mcrates/collab/tests/integration/channel_buffer_tests.rs[39m[22m [396:31 - 426:7]
+--
+Clone found (rust):
+ - [1m[32mcrates/agent_ui/src/ui/claude_agent_onboarding_modal.rs[39m[22m [128:2 - 155:3] (27 lines, 222 tokens)
+   [1m[32mcrates/ui/src/components/notification/announcement_toast.rs[39m[22m [179:2 - 206:6]
+--
+Clone found (rust):
+ - [1m[32mcrates/agent_ui/src/ui/acp_onboarding_modal.rs[39m[22m [25:2 - 42:10] (17 lines, 241 tokens)
+   [1m[32mcrates/agent_ui/src/ui/claude_agent_onboarding_modal.rs[39m[22m [25:2 - 42:16]
+--

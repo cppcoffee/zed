@@ -1,3 +1,5 @@
+#[macro_use]
+mod label_like_macro;
 mod highlighted_label;
 mod label;
 mod label_like;

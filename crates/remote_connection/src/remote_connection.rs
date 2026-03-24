@@ -30,6 +30,8 @@ pub struct RemoteConnectionPrompt {
     prompt: Option<(Entity<Markdown>, oneshot::Sender<EncryptedPassword>)>,
     cancellation: Option<oneshot::Sender<()>>,
     editor: Arc<dyn ErasedEditor>,
+    is_password_prompt: bool,
+    is_masked: bool,
 }
 
 impl Drop for RemoteConnectionPrompt {
@@ -70,6 +72,8 @@ impl RemoteConnectionPrompt {
             status_message: None,
             cancellation: None,
             prompt: None,
+            is_password_prompt: false,
+            is_masked: true,
         }
     }
 
@@ -85,7 +89,9 @@ impl RemoteConnectionPrompt {
         cx: &mut Context<Self>,
     ) {
         let is_yes_no = prompt.contains("yes/no");
-        self.editor.set_masked(!is_yes_no, window, cx);
+        self.is_password_prompt = !is_yes_no;
+        self.is_masked = !is_yes_no;
+        self.editor.set_masked(self.is_masked, window, cx);
 
         let markdown = cx.new(|cx| Markdown::new_text(prompt.into(), cx));
         self.prompt = Some((markdown, tx));
@@ -156,12 +162,41 @@ impl Render for RemoteConnectionPrompt {
                 )
             })
             .when_some(self.prompt.as_ref(), |el, prompt| {
+                let is_password_prompt = self.is_password_prompt;
+                let is_masked = self.is_masked;
+
                 el.child(
                     div()
                         .size_full()
                         .overflow_hidden()
                         .child(MarkdownElement::new(prompt.0.clone(), markdown_style))
-                        .child(self.editor.render(window, cx)),
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .items_center()
+                                .justify_between()
+                                .child(div().flex_1().child(self.editor.render(window, cx)))
+                                .when(is_password_prompt, |el| {
+                                    el.child(
+                                        ui::IconButton::new(
+                                            "toggle_mask",
+                                            if is_masked {
+                                                ui::IconName::Eye
+                                            } else {
+                                                ui::IconName::EyeOff
+                                            },
+                                        )
+                                        .on_click(
+                                            cx.listener(|this, _, window, cx| {
+                                                this.is_masked = !this.is_masked;
+                                                this.editor.set_masked(this.is_masked, window, cx);
+                                                window.focus(&this.editor.focus_handle(cx), cx);
+                                                cx.notify();
+                                            }),
+                                        ),
+                                    )
+                                }),
+                        ),
                 )
                 .when(window.capslock().on, |el| {
                     el.child(Label::new("⚠️ ⇪ is on"))

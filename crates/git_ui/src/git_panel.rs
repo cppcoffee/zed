@@ -4188,9 +4188,7 @@ impl GitPanel {
     }
 
     pub fn commit_button_title(&self) -> &'static str {
-        if self.generate_commit_message_task.is_some() {
-            "Generating..."
-        } else if self.amend_pending {
+        if self.amend_pending {
             if self.has_staged_changes() {
                 "Amend"
             } else if self.has_tracked_changes() {

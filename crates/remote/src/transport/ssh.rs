@@ -1567,6 +1567,25 @@ impl SshConnectionOptions {
             args.extend(["-o".to_string(), format!("ConnectTimeout={}", timeout)]);
         }
 
+        let mut has_server_alive_interval = false;
+        let mut has_server_alive_count_max = false;
+
+        for arg in &args {
+            if arg.contains("ServerAliveInterval") {
+                has_server_alive_interval = true;
+            }
+            if arg.contains("ServerAliveCountMax") {
+                has_server_alive_count_max = true;
+            }
+        }
+
+        if !has_server_alive_interval {
+            args.extend(["-o".to_string(), "ServerAliveInterval=15".to_string()]);
+        }
+        if !has_server_alive_count_max {
+            args.extend(["-o".to_string(), "ServerAliveCountMax=4".to_string()]);
+        }
+
         if let Some(port) = self.port {
             args.push("-p".to_string());
             args.push(port.to_string());

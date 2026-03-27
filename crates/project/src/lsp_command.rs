@@ -2633,7 +2633,23 @@ impl LspCommand for GetCodeActions {
             .snapshot()
             .diagnostics_in_range::<_, language::PointUtf16>(self.range.clone(), false)
         {
-            relevant_diagnostics.push(entry.to_lsp_diagnostic_stub()?);
+            let mut lsp_diagnostic = entry.to_lsp_diagnostic_stub()?;
+
+            // The `data` field in diagnostics is specific to the language server that emitted it.
+            // If we send a diagnostic with a custom `data` payload to a different language server,
+            // that server may crash trying to deserialize it (e.g., ruff expects a `kind` field).
+            // Since we don't store the exact server ID on the diagnostic, we use a heuristic based
+            // on the diagnostic's source and the current server's name to clear the `data` field
+            // for foreign diagnostics.
+            if let Some(source) = &entry.diagnostic.source {
+                if !source.eq_ignore_ascii_case(language_server.name().as_ref()) {
+                    lsp_diagnostic.data = None;
+                }
+            } else {
+                lsp_diagnostic.data = None;
+            }
+
+            relevant_diagnostics.push(lsp_diagnostic);
         }
 
         let only = if let Some(requested) = &self.kinds {

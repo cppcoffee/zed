@@ -31,6 +31,7 @@ use gpui::{
     ImageFormat, KeyContext, Length, MouseButton, MouseDownEvent, MouseEvent, MouseMoveEvent,
     MouseUpEvent, Point, ScrollHandle, Stateful, StrikethroughStyle, StyleRefinement, StyledText,
     Task, TextLayout, TextRun, TextStyle, TextStyleRefinement, actions, img, point, quad,
+    InteractiveElement, StatefulInteractiveElement,
 };
 use language::{CharClassifier, Language, LanguageRegistry, Rope};
 use parser::CodeBlockMetadata;
@@ -249,6 +250,7 @@ pub struct Markdown {
     copied_code_blocks: HashSet<ElementId>,
     code_block_scroll_handles: BTreeMap<usize, ScrollHandle>,
     context_menu_selected_text: Option<String>,
+    hovered_link: Option<SharedString>,
 }
 
 struct Options {
@@ -319,6 +321,7 @@ impl Markdown {
             copied_code_blocks: HashSet::default(),
             code_block_scroll_handles: BTreeMap::default(),
             context_menu_selected_text: None,
+            hovered_link: None,
         };
         this.parse(cx);
         this
@@ -344,6 +347,7 @@ impl Markdown {
             copied_code_blocks: HashSet::default(),
             code_block_scroll_handles: BTreeMap::default(),
             context_menu_selected_text: None,
+            hovered_link: None,
         };
         this.parse(cx);
         this
@@ -933,9 +937,19 @@ impl MarkdownElement {
                     markdown.autoscroll_request = Some(source_index);
                     cx.notify();
                 } else {
-                    let is_hovering_link = hitbox.is_hovered(window)
-                        && rendered_text.link_for_position(event.position).is_some();
-                    if is_hovering_link != was_hovering_link {
+                    let hovered_link = if hitbox.is_hovered(window) {
+                        rendered_text.link_for_position(event.position).map(|l| l.destination_url.clone())
+                    } else {
+                        None
+                    };
+
+                    let is_hovering_link = hovered_link.is_some();
+                    let link_changed = markdown.hovered_link != hovered_link;
+
+                    if link_changed {
+                        markdown.hovered_link = hovered_link;
+                    }
+                    if is_hovering_link != was_hovering_link || link_changed {
                         cx.notify();
                     }
                 }
@@ -1519,6 +1533,17 @@ impl Element for MarkdownElement {
                 .update(cx, |markdown, _| markdown.clear_code_block_scroll_handles());
         }
         let mut rendered_markdown = builder.build();
+
+        let hovered_link = self.markdown.read(cx).hovered_link.clone();
+
+        rendered_markdown.element = div()
+            .id("markdown-link-tooltip")
+            .child(rendered_markdown.element)
+            .when_some(hovered_link, |div, url| {
+                div.tooltip(move |_, cx| ui::LinkPreview::new(&url, cx))
+            })
+            .into_any_element();
+
         let child_layout_id = rendered_markdown.element.request_layout(window, cx);
         let layout_id = window.request_layout(gpui::Style::default(), [child_layout_id], cx);
         (layout_id, rendered_markdown)

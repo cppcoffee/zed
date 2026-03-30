@@ -52,6 +52,7 @@ use schemars::JsonSchema;
 use seahash::SeaHasher;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use std::any::Any;
 use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::io::Cursor;
@@ -79,6 +80,22 @@ pub use test::{TestDispatcher, TestScreenCaptureSource, TestScreenCaptureStream}
 
 #[cfg(all(target_os = "macos", any(test, feature = "test-support")))]
 pub use visual_test::VisualTestPlatform;
+
+/// An opaque token that keeps a platform-specific idle sleep prevention activity alive.
+///
+/// Dropping this token releases the underlying activity.
+pub struct PreventIdleSleepToken {
+    _value: Box<dyn Any>,
+}
+
+impl PreventIdleSleepToken {
+    /// Creates a new token from a platform-specific guard value.
+    pub fn new<T: 'static>(value: T) -> Self {
+        Self {
+            _value: Box::new(value),
+        }
+    }
+}
 
 // TODO(jk): return an enum instead of a string
 /// Return which compositor we're guessing we'll use.
@@ -204,6 +221,9 @@ pub trait Platform: 'static {
 
     fn thermal_state(&self) -> ThermalState;
     fn on_thermal_state_change(&self, callback: Box<dyn FnMut()>);
+    fn prevent_idle_sleep(&self, _reason: &str) -> Option<PreventIdleSleepToken> {
+        None
+    }
 
     fn compositor_name(&self) -> &'static str {
         ""

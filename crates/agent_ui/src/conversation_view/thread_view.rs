@@ -5,6 +5,7 @@ use crate::{
 use std::cell::RefCell;
 
 use acp_thread::{ContentBlock, PlanEntry};
+use agent_settings::AgentOutputIdleSleepControl;
 use cloud_api_types::{SubmitAgentThreadFeedbackBody, SubmitAgentThreadFeedbackCommentsBody};
 use editor::actions::OpenExcerpts;
 
@@ -459,6 +460,8 @@ impl ThreadView {
                 .ok();
             }));
         }));
+        cx.default_global::<AgentOutputIdleSleepControl>();
+        subscriptions.push(cx.observe_global::<AgentOutputIdleSleepControl>(|_, cx| cx.notify()));
 
         let recent_history_entries = history
             .as_ref()
@@ -3159,6 +3162,7 @@ impl ThreadView {
                             .gap_0p5()
                             .child(self.render_add_context_button(cx))
                             .child(self.render_follow_toggle(cx))
+                            .child(self.render_idle_sleep_prevention_toggle(cx))
                             .children(self.render_fast_mode_control(cx))
                             .children(self.render_thinking_control(cx)),
                     )
@@ -4087,6 +4091,34 @@ impl ThreadView {
             })
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.toggle_following(window, cx);
+            }))
+    }
+
+    fn render_idle_sleep_prevention_toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let prevent_idle_sleep = AgentOutputIdleSleepControl::is_enabled(cx);
+
+        let (tooltip_label, tooltip_meta, color) = if prevent_idle_sleep {
+            (
+                "Allow Sleep While Running",
+                "Zed will stop preventing idle sleep while it is running a thread.",
+                Color::Muted,
+            )
+        } else {
+            (
+                "Prevent Sleep While Running",
+                "Zed will keep your computer awake while it is running a thread.",
+                Color::Custom(cx.theme().colors().icon_disabled.opacity(0.8)),
+            )
+        };
+
+        IconButton::new("toggle-idle-sleep-prevention", IconName::Screen)
+            .icon_size(IconSize::Small)
+            .icon_color(color)
+            .toggle_state(prevent_idle_sleep)
+            .selected_icon_color(Some(Color::Accent))
+            .tooltip(move |_window, cx| Tooltip::with_meta(tooltip_label, None, tooltip_meta, cx))
+            .on_click(cx.listener(|_, _, _window, cx| {
+                AgentOutputIdleSleepControl::toggle(cx);
             }))
     }
 }

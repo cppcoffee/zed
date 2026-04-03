@@ -1,0 +1,15 @@
+--- crates/agent/src/tools/tool_permissions.rs
++++ crates/agent/src/tools/tool_permissions.rs
+@@ -113,6 +113,12 @@
+     }
+
+     if let Some(canonical_path) = canonicalize_with_ancestors(path, fs).await {
++        if canonical_path.components().any(|component| {
++            component.as_os_str() == <_ as AsRef<OsStr>>::as_ref(&local_settings_folder)
++        }) {
++            return Some(SensitiveSettingsKind::Local);
++        }
++
+         let config_dir = fs
+             .canonicalize(paths::config_dir())
+             .await

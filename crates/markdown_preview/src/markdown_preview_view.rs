@@ -607,6 +607,7 @@ impl MarkdownPreviewView {
         .show_root_block_markers()
         .image_resolver({
             let base_directory = self.base_directory.clone();
+            let workspace_directory = workspace_directory.clone();
             move |dest_url| {
                 resolve_preview_image(
                     dest_url,
@@ -616,7 +617,14 @@ impl MarkdownPreviewView {
             }
         })
         .on_url_click(move |url, window, cx| {
-            open_preview_url(url, base_directory.clone(), &workspace, window, cx);
+            open_preview_url(
+                url,
+                base_directory.clone(),
+                workspace_directory.clone(),
+                &workspace,
+                window,
+                cx,
+            );
         });
 
         if let Some(active_editor) = active_editor {
@@ -658,12 +666,16 @@ impl MarkdownPreviewView {
 fn open_preview_url(
     url: SharedString,
     base_directory: Option<PathBuf>,
+    workspace_directory: Option<PathBuf>,
     workspace: &WeakEntity<Workspace>,
     window: &mut Window,
     cx: &mut App,
 ) {
-    if let Some(path) = resolve_preview_path(url.as_ref(), base_directory.as_deref())
-        && let Some(workspace) = workspace.upgrade()
+    if let Some(path) = resolve_preview_path(
+        url.as_ref(),
+        base_directory.as_deref(),
+        workspace_directory.as_deref(),
+    ) && let Some(workspace) = workspace.upgrade()
     {
         let _ = workspace.update(cx, |workspace, cx| {
             workspace
@@ -684,27 +696,49 @@ fn open_preview_url(
     cx.open_url(url.as_ref());
 }
 
-fn resolve_preview_path(url: &str, base_directory: Option<&Path>) -> Option<PathBuf> {
+fn decode_url(url: &str) -> String {
+    urlencoding::decode(url)
+        .map(|decoded| decoded.into_owned())
+        .unwrap_or_else(|_| url.to_string())
+}
+
+fn resolve_local_path(
+    url: &str,
+    base_directory: Option<&Path>,
+    workspace_directory: Option<&Path>,
+) -> Option<PathBuf> {
+    let decoded = decode_url(url);
+    let decoded_path = Path::new(&decoded);
+
+    if let Ok(relative_path) = decoded_path.strip_prefix("/") {
+        if let Some(root) = workspace_directory {
+            let absolute_path = root.join(relative_path);
+            if absolute_path.exists() {
+                return Some(absolute_path);
+            }
+        }
+    }
+
+    let path = if decoded_path.is_absolute() {
+        PathBuf::from(decoded)
+    } else {
+        base_directory?.join(decoded)
+    };
+
+    Some(path)
+}
+
+fn resolve_preview_path(
+    url: &str,
+    base_directory: Option<&Path>,
+    workspace_directory: Option<&Path>,
+) -> Option<PathBuf> {
     if url.starts_with("http://") || url.starts_with("https://") {
         return None;
     }
 
-    let decoded_url = urlencoding::decode(url)
-        .map(|decoded| decoded.into_owned())
-        .unwrap_or_else(|_| url.to_string());
-    let candidate = PathBuf::from(&decoded_url);
-
-    if candidate.is_absolute() && candidate.exists() {
-        return Some(candidate);
-    }
-
-    let base_directory = base_directory?;
-    let resolved = base_directory.join(decoded_url);
-    if resolved.exists() {
-        Some(resolved)
-    } else {
-        None
-    }
+    resolve_local_path(url, base_directory, workspace_directory)
+        .filter(|path| path.exists())
 }
 
 fn resolve_preview_image(
@@ -722,32 +756,8 @@ fn resolve_preview_image(
         ))));
     }
 
-    let decoded = urlencoding::decode(dest_url)
-        .map(|decoded| decoded.into_owned())
-        .unwrap_or_else(|_| dest_url.to_string());
-
-    let decoded_path = Path::new(&decoded);
-
-    if let Ok(relative_path) = decoded_path.strip_prefix("/") {
-        if let Some(root) = workspace_directory {
-            let absolute_path = root.join(relative_path);
-            if absolute_path.exists() {
-                return Some(ImageSource::Resource(Resource::Path(Arc::from(
-                    absolute_path.as_path(),
-                ))));
-            }
-        }
-    }
-
-    let path = if Path::new(&decoded).is_absolute() {
-        PathBuf::from(decoded)
-    } else {
-        base_directory?.join(decoded)
-    };
-
-    Some(ImageSource::Resource(Resource::Path(Arc::from(
-        path.as_path(),
-    ))))
+    resolve_local_path(dest_url, base_directory, workspace_directory)
+        .map(|path| ImageSource::Resource(Resource::Path(Arc::from(path.as_path()))))
 }
 
 impl Focusable for MarkdownPreviewView {
@@ -979,14 +989,14 @@ mod tests {
         fs::write(&file, "# Notes")?;
 
         assert_eq!(
-            resolve_preview_path("notes.md", Some(base_directory)),
+            resolve_preview_path("notes.md", Some(base_directory), None),
             Some(file)
         );
         assert_eq!(
-            resolve_preview_path("nonexistent.md", Some(base_directory)),
+            resolve_preview_path("nonexistent.md", Some(base_directory), None),
             None
         );
-        assert_eq!(resolve_preview_path("notes.md", None), None);
+        assert_eq!(resolve_preview_path("notes.md", None, None), None);
 
         Ok(())
     }
@@ -999,7 +1009,7 @@ mod tests {
         fs::write(&file, "# Release Notes")?;
 
         assert_eq!(
-            resolve_preview_path("release%20notes.md", Some(base_directory)),
+            resolve_preview_path("release%20notes.md", Some(base_directory), None),
             Some(file)
         );
 
@@ -1056,7 +1066,7 @@ mod tests {
 
     #[test]
     fn does_not_treat_web_links_as_preview_paths() {
-        assert_eq!(resolve_preview_path("https://zed.dev", None), None);
-        assert_eq!(resolve_preview_path("http://example.com", None), None);
+        assert_eq!(resolve_preview_path("https://zed.dev", None, None), None);
+        assert_eq!(resolve_preview_path("http://example.com", None, None), None);
     }
 }

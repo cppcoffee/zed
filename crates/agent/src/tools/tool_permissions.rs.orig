@@ -112,12 +112,6 @@ pub async fn sensitive_settings_kind(path: &Path, fs: &dyn Fs) -> Option<Sensiti
     }
 
     if let Some(canonical_path) = canonicalize_with_ancestors(path, fs).await {
-        if canonical_path.components().any(|component| {
-            component.as_os_str() == <_ as AsRef<OsStr>>::as_ref(&local_settings_folder)
-        }) {
-            return Some(SensitiveSettingsKind::Local);
-        }
-
         let config_dir = fs
             .canonicalize(paths::config_dir())
             .await
@@ -389,6 +383,13 @@ pub fn authorize_file_edit(
     let thread = thread.clone();
     let event_stream = event_stream.clone();
 
+    // The local settings folder check is synchronous (pure path inspection),
+    // so we can handle this common case without spawning.
+    let local_settings_folder = paths::local_settings_folder_name();
+    let is_local_settings = path.components().any(|component| {
+        component.as_os_str() == <_ as AsRef<OsStr>>::as_ref(&local_settings_folder)
+    });
+
     cx.spawn(async move |cx| {
         // Resolve the path and check for symlink escapes.
         let (project_entity, fs) = thread.read_with(cx, |thread, cx| {
@@ -448,7 +449,11 @@ pub fn authorize_file_edit(
         let explicitly_allowed = matches!(decision, ToolPermissionDecision::Allow);
 
         // Check sensitive settings asynchronously.
-        let settings_kind = sensitive_settings_kind(&path_owned, fs.as_ref()).await;
+        let settings_kind = if is_local_settings {
+            Some(SensitiveSettingsKind::Local)
+        } else {
+            sensitive_settings_kind(&path_owned, fs.as_ref()).await
+        };
 
         let is_sensitive = settings_kind.is_some();
         if explicitly_allowed && !is_sensitive {

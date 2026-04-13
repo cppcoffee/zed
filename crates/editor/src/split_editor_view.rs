@@ -2,23 +2,21 @@ use std::cmp;
 
 use collections::{HashMap, HashSet};
 use gpui::{
-    AbsoluteLength, AnyElement, App, AvailableSpace, Bounds, Context, DragMoveEvent, Element,
-    Entity, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Length,
+    AbsoluteLength, AnyElement, App, AvailableSpace, Bounds, Context, Corner, DragMoveEvent,
+    Element, Entity, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Length,
     ParentElement, Pixels, StatefulInteractiveElement, Styled, TextStyleRefinement, Window, div,
     linear_color_stop, linear_gradient, point, px, size,
 };
 use multi_buffer::{Anchor, ExcerptBoundaryInfo};
-use settings::Settings;
 use smallvec::smallvec;
 use text::BufferId;
 use theme::ActiveTheme;
-use ui::scrollbars::ShowScrollbar;
 use ui::{h_flex, prelude::*, v_flex};
 
 use gpui::ContentMask;
 
 use crate::{
-    DisplayRow, Editor, EditorSettings, EditorSnapshot, EditorStyle, FILE_HEADER_HEIGHT,
+    DisplayRow, Editor, EditorSnapshot, EditorStyle, FILE_HEADER_HEIGHT,
     MULTI_BUFFER_EXCERPT_HEADER_HEIGHT, RowExt, StickyHeaderExcerpt,
     display_map::Block,
     element::{EditorElement, SplitSide, header_jump_data, render_buffer_header},
@@ -249,6 +247,7 @@ struct BufferHeaderLayout {
 }
 
 struct SplitBufferHeadersPrepaintState {
+    content_bounds: Bounds<Pixels>,
     sticky_header: Option<AnyElement>,
     non_sticky_headers: Vec<BufferHeaderLayout>,
 }
@@ -301,6 +300,7 @@ impl Element for SplitBufferHeadersElement {
     ) -> Self::PrepaintState {
         if bounds.size.width <= px(0.) || bounds.size.height <= px(0.) {
             return SplitBufferHeadersPrepaintState {
+                content_bounds: bounds,
                 sticky_header: None,
                 non_sticky_headers: Vec::new(),
             };
@@ -324,7 +324,7 @@ impl Element for SplitBufferHeadersElement {
         &mut self,
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>,
+        _bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
         prepaint: &mut Self::PrepaintState,
         window: &mut Window,
@@ -339,15 +339,20 @@ impl Element for SplitBufferHeadersElement {
 
         window.with_rem_size(rem_size, |window| {
             window.with_text_style(Some(text_style), |window| {
-                window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                    for header_layout in &mut prepaint.non_sticky_headers {
-                        header_layout.element.paint(window, cx);
-                    }
+                window.with_content_mask(
+                    Some(ContentMask {
+                        bounds: prepaint.content_bounds,
+                    }),
+                    |window| {
+                        for header_layout in &mut prepaint.non_sticky_headers {
+                            header_layout.element.paint(window, cx);
+                        }
 
-                    if let Some(mut sticky_header) = prepaint.sticky_header.take() {
-                        sticky_header.paint(window, cx);
-                    }
-                });
+                        if let Some(mut sticky_header) = prepaint.sticky_header.take() {
+                            sticky_header.paint(window, cx);
+                        }
+                    },
+                );
             });
         });
     }
@@ -383,16 +388,12 @@ impl SplitBufferHeadersElement {
         let scroll_position = snapshot.scroll_position();
 
         // Compute right margin to avoid overlapping the scrollbar
-        let settings = EditorSettings::get_global(cx);
-        let scrollbars_shown = settings.scrollbar.show != ShowScrollbar::Never;
-        let vertical_scrollbar_width = (scrollbars_shown
-            && settings.scrollbar.axes.vertical
-            && self.editor.read(cx).show_scrollbars.vertical)
-            .then_some(EditorElement::SCROLLBAR_WIDTH)
-            .unwrap_or_default();
-        let available_width = bounds.size.width - vertical_scrollbar_width;
+        let content_bounds = self.content_bounds(bounds, cx);
+        let available_width = (content_bounds.size.width
+            - self.editor.read(cx).last_right_margin())
+        .max(Pixels::ZERO);
 
-        let visible_height_in_lines = bounds.size.height / line_height;
+        let visible_height_in_lines = content_bounds.size.height / line_height;
         let max_row = snapshot.max_point().row();
         let start_row = cmp::min(DisplayRow(scroll_position.y.floor() as u32), max_row);
         let end_row = cmp::min(
@@ -412,7 +413,7 @@ impl SplitBufferHeadersElement {
                         sticky_excerpt,
                         &snapshot,
                         scroll_position,
-                        bounds,
+                        content_bounds,
                         available_width,
                         line_height,
                         &selected_buffer_ids,
@@ -434,7 +435,7 @@ impl SplitBufferHeadersElement {
         let non_sticky_headers = self.build_non_sticky_headers(
             &snapshot,
             scroll_position,
-            bounds,
+            content_bounds,
             available_width,
             line_height,
             start_row,
@@ -447,9 +448,28 @@ impl SplitBufferHeadersElement {
         );
 
         SplitBufferHeadersPrepaintState {
+            content_bounds,
             sticky_header,
             non_sticky_headers,
         }
+    }
+
+    fn content_bounds(&self, bounds: Bounds<Pixels>, cx: &App) -> Bounds<Pixels> {
+        let horizontal_scrollbar_height = self
+            .editor
+            .read(cx)
+            .last_visible_horizontal_scrollbar()
+            .then_some(self.style.scrollbar_width)
+            .unwrap_or_default();
+
+        Bounds::from_corner_and_size(
+            Corner::TopLeft,
+            bounds.origin,
+            size(
+                bounds.size.width,
+                (bounds.size.height - horizontal_scrollbar_height).max(Pixels::ZERO),
+            ),
+        )
     }
 
     fn compute_selection_info(

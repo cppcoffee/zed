@@ -1289,6 +1289,8 @@ pub struct Editor {
     >,
     last_bounds: Option<Bounds<Pixels>>,
     last_position_map: Option<Rc<PositionMap>>,
+    last_right_margin: Pixels,
+    last_visible_horizontal_scrollbar: bool,
     expect_bounds_change: Option<Bounds<Pixels>>,
     runnables: RunnableData,
     breakpoint_store: Option<Entity<BreakpointStore>>,
@@ -2490,6 +2492,8 @@ impl Editor {
             pixel_position_of_newest_cursor: None,
             last_bounds: None,
             last_position_map: None,
+            last_right_margin: Pixels::ZERO,
+            last_visible_horizontal_scrollbar: false,
             expect_bounds_change: None,
             gutter_dimensions: GutterDimensions::default(),
             style: None,
@@ -2930,6 +2934,14 @@ impl Editor {
 
     pub fn last_bounds(&self) -> Option<&Bounds<Pixels>> {
         self.last_bounds.as_ref()
+    }
+
+    pub(crate) fn last_right_margin(&self) -> Pixels {
+        self.last_right_margin
+    }
+
+    pub(crate) fn last_visible_horizontal_scrollbar(&self) -> bool {
+        self.last_visible_horizontal_scrollbar
     }
 
     fn show_mouse_cursor(&mut self, cx: &mut Context<Self>) {

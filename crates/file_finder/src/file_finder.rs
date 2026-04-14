@@ -15,6 +15,7 @@ use gpui::{
     KeyContext, Modifiers, ModifiersChangedEvent, ParentElement, Render, Styled, Task, WeakEntity,
     Window, actions, rems,
 };
+use language::{BufferSnapshot, Point};
 use open_path_prompt::{
     OpenPathPrompt,
     file_finder_settings::{FileFinderSettings, FileFinderWidth},
@@ -28,7 +29,7 @@ use settings::Settings;
 use std::{
     borrow::Cow,
     cmp,
-    ops::Range,
+    ops::{Range, RangeInclusive},
     path::{Component, Path, PathBuf},
     sync::{
         Arc,
@@ -833,6 +834,7 @@ struct FileSearchQuery {
     raw_query: String,
     file_query_end: Option<usize>,
     path_position: PathWithPosition,
+    line_range: Option<RangeInclusive<u32>>,
 }
 
 impl FileSearchQuery {
@@ -842,6 +844,83 @@ impl FileSearchQuery {
             None => &self.raw_query,
         }
     }
+
+    fn selection_range(&self, buffer_snapshot: &BufferSnapshot) -> Option<Range<Point>> {
+        if let Some(line_range) = self.line_range.clone() {
+            return Some(buffer_range_for_line_range(buffer_snapshot, line_range));
+        }
+
+        let row = self.path_position.row.map(|row| row.saturating_sub(1))?;
+        let col = self.path_position.column.unwrap_or(0).saturating_sub(1);
+        let point = buffer_snapshot.point_from_external_input(row, col);
+        Some(point..point)
+    }
+}
+
+fn parse_file_search_query(raw_query: &str) -> FileSearchQuery {
+    let raw_query = raw_query.trim().trim_end_matches(':').to_owned();
+
+    if let Some((path_query, line_range)) = parse_line_range_query(&raw_query) {
+        let path_query = path_query.to_owned();
+        return FileSearchQuery {
+            raw_query,
+            file_query_end: Some(path_query.len()),
+            path_position: PathWithPosition {
+                path: PathBuf::from(&path_query),
+                row: Some(*line_range.start()),
+                column: None,
+            },
+            line_range: Some(line_range),
+        };
+    }
+
+    let path_position = PathWithPosition::parse_str(&raw_query);
+    let path_str = path_position.path.to_str();
+    let path_trimmed = path_str.unwrap_or(&raw_query).trim_end_matches(':');
+    let file_query_end = if path_trimmed == raw_query {
+        None
+    } else {
+        path_str.map(str::len)
+    };
+
+    FileSearchQuery {
+        raw_query,
+        file_query_end,
+        path_position,
+        line_range: None,
+    }
+}
+
+fn parse_line_range_query(raw_query: &str) -> Option<(&str, RangeInclusive<u32>)> {
+    let (path_query, line_range) = raw_query.rsplit_once(':')?;
+    if path_query.is_empty() {
+        return None;
+    }
+
+    let (start_line, end_line) = line_range.split_once('-')?;
+    let start_line = start_line.parse::<u32>().ok()?;
+    let end_line = end_line.parse::<u32>().ok()?;
+    if start_line == 0 || end_line == 0 || end_line < start_line {
+        return None;
+    }
+
+    Some((path_query, start_line..=end_line))
+}
+
+fn buffer_range_for_line_range(
+    buffer_snapshot: &BufferSnapshot,
+    line_range: RangeInclusive<u32>,
+) -> Range<Point> {
+    let max_point = buffer_snapshot.max_point();
+    let start_point = Point::new(line_range.start().saturating_sub(1).min(max_point.row), 0);
+    let end_line = *line_range.end();
+    let end_point = if end_line > max_point.row {
+        max_point
+    } else {
+        Point::new(end_line, 0)
+    };
+
+    start_point..end_point
 }
 
 impl FileFinderDelegate {
@@ -1060,7 +1139,7 @@ impl FileFinderDelegate {
                 }
             }
 
-            let query_path = query.raw_query.as_str();
+            let query_path = query.path_query();
             if let Ok(mut query_path) = RelPath::new(Path::new(query_path), path_style) {
                 let available_worktree = self
                     .project
@@ -1095,8 +1174,8 @@ impl FileFinderDelegate {
                 if let Some(worktree) = expect_worktree {
                     let worktree = worktree.read(cx);
                     if worktree.entry_for_path(&query_path).is_none()
-                        && !query.raw_query.ends_with("/")
-                        && !(path_style.is_windows() && query.raw_query.ends_with("\\"))
+                        && !query.path_query().ends_with("/")
+                        && !(path_style.is_windows() && query.path_query().ends_with("\\"))
                     {
                         self.matches.matches.push(Match::CreateNew(ProjectPath {
                             worktree_id: worktree.id(),
@@ -1516,23 +1595,8 @@ impl PickerDelegate for FileFinderDelegate {
             cx.notify();
             Task::ready(())
         } else {
-            let path_position = PathWithPosition::parse_str(raw_query);
-            let raw_query = raw_query.trim().trim_end_matches(':').to_owned();
-            let path = path_position.path.clone();
-            let path_str = path_position.path.to_str();
-            let path_trimmed = path_str.unwrap_or(&raw_query).trim_end_matches(':');
-            let file_query_end = if path_trimmed == raw_query {
-                None
-            } else {
-                // Safe to unwrap as we won't get here when the unwrap in if fails
-                Some(path_str.unwrap().len())
-            };
-
-            let query = FileSearchQuery {
-                raw_query,
-                file_query_end,
-                path_position,
-            };
+            let query = parse_file_search_query(raw_query);
+            let path = query.path_position.path.clone();
 
             cx.spawn_in(window, async move |this, cx| {
                 let _ = maybe!(async move {
@@ -1675,17 +1739,7 @@ impl PickerDelegate for FileFinderDelegate {
                 }
             });
 
-            let row = self
-                .latest_search_query
-                .as_ref()
-                .and_then(|query| query.path_position.row)
-                .map(|row| row.saturating_sub(1));
-            let col = self
-                .latest_search_query
-                .as_ref()
-                .and_then(|query| query.path_position.column)
-                .unwrap_or(0)
-                .saturating_sub(1);
+            let selection_query = self.latest_search_query.clone();
             let finder = self.file_finder.clone();
             let workspace = self.workspace.clone();
 
@@ -1693,9 +1747,7 @@ impl PickerDelegate for FileFinderDelegate {
                 let item = open_task
                     .await
                     .notify_workspace_async_err(workspace, &mut cx)?;
-                if let Some(row) = row
-                    && let Some(active_editor) = item.downcast::<Editor>()
-                {
+                if let Some(active_editor) = item.downcast::<Editor>() {
                     active_editor
                         .downgrade()
                         .update_in(cx, |editor, window, cx| {
@@ -1703,8 +1755,15 @@ impl PickerDelegate for FileFinderDelegate {
                                 return;
                             };
                             let buffer_snapshot = buffer.read(cx).snapshot();
-                            let point = buffer_snapshot.point_from_external_input(row, col);
-                            editor.go_to_singleton_buffer_point(point, window, cx);
+                            let Some(selection_query) = selection_query.as_ref() else {
+                                return;
+                            };
+                            let Some(selection_range) =
+                                selection_query.selection_range(&buffer_snapshot)
+                            else {
+                                return;
+                            };
+                            editor.go_to_singleton_buffer_range(selection_range, window, cx);
                         })
                         .log_err();
                 }

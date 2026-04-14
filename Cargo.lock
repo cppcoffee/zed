@@ -6184,6 +6184,7 @@ dependencies = [
  "futures 0.3.32",
  "fuzzy",
  "gpui",
+ "language",
  "menu",
  "open_path_prompt",
  "picker",

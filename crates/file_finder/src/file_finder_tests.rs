@@ -766,6 +766,56 @@ async fn test_line_range_query_selects_lines(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+async fn test_line_range_query_outside_file_clamps_to_eof(cx: &mut TestAppContext) {
+    let app_state = init_test(cx);
+
+    let first_file_contents = "line 1\nline 2";
+    app_state
+        .fs
+        .as_fake()
+        .insert_tree(
+            path!("/src"),
+            json!({
+                "test": {
+                    "first.rs": first_file_contents,
+                }
+            }),
+        )
+        .await;
+
+    let project = Project::test(app_state.fs.clone(), [path!("/src").as_ref()], cx).await;
+
+    let (picker, workspace, cx) = build_find_picker(project, cx);
+
+    let query = "test/first.rs:200-300";
+    picker
+        .update_in(cx, |finder, window, cx| {
+            finder
+                .delegate
+                .update_matches(query.to_string(), window, cx)
+        })
+        .await;
+
+    cx.dispatch_action(Confirm);
+
+    let editor = cx.update(|_, cx| workspace.read(cx).active_item_as::<Editor>(cx).unwrap());
+    cx.executor().advance_clock(Duration::from_secs(2));
+
+    editor.update(cx, |editor, cx| {
+        let all_selections = editor.selections.all_adjusted(&editor.display_snapshot(cx));
+        assert_eq!(
+            all_selections.len(),
+            1,
+            "Expected to have 1 selection after file finder confirm, but got: {all_selections:?}"
+        );
+        let selection = all_selections.into_iter().next().unwrap();
+        assert_eq!(selection.start, selection.end);
+        assert_eq!(selection.start.row, 1);
+        assert_eq!(selection.start.column, "line 2".len() as u32);
+    });
+}
+
+#[gpui::test]
 async fn test_matching_cancellation(cx: &mut TestAppContext) {
     let app_state = init_test(cx);
     app_state

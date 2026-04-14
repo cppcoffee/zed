@@ -912,7 +912,12 @@ fn buffer_range_for_line_range(
     line_range: RangeInclusive<u32>,
 ) -> Range<Point> {
     let max_point = buffer_snapshot.max_point();
-    let start_point = Point::new(line_range.start().saturating_sub(1).min(max_point.row), 0);
+    let start_line = line_range.start().saturating_sub(1);
+    let start_point = if start_line > max_point.row {
+        max_point
+    } else {
+        Point::new(start_line, 0)
+    };
     let end_line = *line_range.end();
     let end_point = if end_line > max_point.row {
         max_point

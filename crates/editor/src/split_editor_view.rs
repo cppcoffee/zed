@@ -599,7 +599,7 @@ impl SplitBufferHeadersElement {
             AvailableSpace::MinContent,
         );
 
-        header.prepaint_as_root(origin, available_size, window, cx);
+        Self::prepaint_header(&mut header, origin, available_size, bounds, window, cx);
 
         header
     }
@@ -663,11 +663,24 @@ impl SplitBufferHeadersElement {
                 AvailableSpace::MinContent,
             );
 
-            header.prepaint_as_root(origin, available_size, window, cx);
+            Self::prepaint_header(&mut header, origin, available_size, bounds, window, cx);
 
             headers.push(BufferHeaderLayout { element: header });
         }
 
         headers
+    }
+
+    fn prepaint_header(
+        header: &mut AnyElement,
+        origin: gpui::Point<Pixels>,
+        available_size: gpui::Size<AvailableSpace>,
+        bounds: Bounds<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        window.with_content_mask(Some(ContentMask { bounds }), |window| {
+            header.prepaint_as_root(origin, available_size, window, cx);
+        });
     }
 }

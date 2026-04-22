@@ -753,8 +753,8 @@ fn resolve_preview_path(url: &str, base_directory: Option<&Path>) -> Option<Path
     }
 
     let decoded_url = urlencoding::decode(url)
-        .map(|decoded| decoded.into_owned())
-        .unwrap_or_else(|_| url.to_string());
+        .unwrap_or(std::borrow::Cow::Borrowed(url))
+        .into_owned();
     let candidate = PathBuf::from(&decoded_url);
 
     if candidate.is_absolute() && candidate.exists() {
@@ -786,8 +786,8 @@ fn resolve_preview_image(
     }
 
     let decoded = urlencoding::decode(dest_url)
-        .map(|decoded| decoded.into_owned())
-        .unwrap_or_else(|_| dest_url.to_string());
+        .unwrap_or(std::borrow::Cow::Borrowed(dest_url))
+        .into_owned();
 
     let decoded_path = Path::new(&decoded);
 

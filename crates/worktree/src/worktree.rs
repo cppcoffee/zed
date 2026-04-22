@@ -2738,8 +2738,19 @@ impl LocalSnapshot {
         removed_entries.sort_unstable();
         updated_entries.sort_unstable_by_key(|e| e.id);
 
-        // TODO - optimize, knowing that removed_entries are sorted.
-        removed_entries.retain(|id| updated_entries.binary_search_by_key(id, |e| e.id).is_err());
+        let mut updated_iter = updated_entries.iter().peekable();
+        removed_entries.retain(|id| {
+            while let Some(&updated_entry) = updated_iter.peek() {
+                if updated_entry.id < *id {
+                    updated_iter.next();
+                } else if updated_entry.id == *id {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+            true
+        });
 
         proto::UpdateWorktree {
             project_id,

@@ -64,6 +64,18 @@ impl ShapedLine {
         self.layout.width
     }
 
+    fn text_slice(&self, start: usize, end: usize) -> SharedString {
+        if start == end {
+            return SharedString::new_static("");
+        }
+
+        if start == 0 && end == self.text.len() {
+            return self.text.clone();
+        }
+
+        SharedString::new(Arc::<str>::from(&self.text[start..end]))
+    }
+
     /// Override the len, useful if you're rendering text a
     /// as text b (e.g. rendering invisibles).
     pub fn with_len(mut self, len: usize) -> Self {
@@ -208,8 +220,8 @@ impl ShapedLine {
         }
 
         // Split text
-        let left_text = SharedString::new(self.text[..byte_index].to_string());
-        let right_text = SharedString::new(self.text[byte_index..].to_string());
+        let left_text = self.text_slice(0, byte_index);
+        let right_text = self.text_slice(byte_index, self.text.len());
 
         let left_width = x_offset;
         let right_width = self.layout.width - left_width;
@@ -830,6 +842,33 @@ mod tests {
         let (left, right) = line.split_at(6);
         assert_eq!(left.runs[0].glyphs.len(), 6);
         assert_eq!(right.runs.len(), 0);
+    }
+
+    #[test]
+    fn test_split_at_reuses_full_line_text() {
+        let line = make_shaped_line(
+            "abcdef",
+            &[
+                (0, 0.0),
+                (1, 10.0),
+                (2, 20.0),
+                (3, 30.0),
+                (4, 40.0),
+                (5, 50.0),
+            ],
+            60.0,
+            &[],
+        );
+
+        let original_text: Arc<str> = line.text.clone().into();
+
+        let (_, right) = line.split_at(0);
+        let right_text: Arc<str> = right.text.clone().into();
+        assert!(Arc::ptr_eq(&original_text, &right_text));
+
+        let (left, _) = line.split_at(line.len());
+        let left_text: Arc<str> = left.text.clone().into();
+        assert!(Arc::ptr_eq(&original_text, &left_text));
     }
 
     #[test]

@@ -4,7 +4,7 @@ use anyhow::Result;
 use collections::HashSet;
 use fs::Fs;
 use gpui::{
-    DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Render, ScrollHandle, Task,
+    DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Length, Render, ScrollHandle, Task,
 };
 use language_model::LanguageModelRegistry;
 use language_models::provider::open_ai_compatible::{AvailableModel, ModelCapabilities};
@@ -21,6 +21,7 @@ fn single_line_input(
     placeholder: &str,
     text: Option<&str>,
     tab_index: isize,
+    min_width: Option<Length>,
     window: &mut Window,
     cx: &mut App,
 ) -> Entity<InputField> {
@@ -29,6 +30,10 @@ fn single_line_input(
             .label(label)
             .tab_index(tab_index)
             .tab_stop(true);
+        let input = match min_width {
+            Some(min_width) => input.label_min_width(min_width),
+            None => input,
+        };
 
         if let Some(text) = text {
             input.set_text(text, window, cx);
@@ -66,8 +71,8 @@ struct AddLlmProviderInput {
 impl AddLlmProviderInput {
     fn new(provider: LlmCompatibleProvider, window: &mut Window, cx: &mut App) -> Self {
         let provider_name =
-            single_line_input("Provider Name", provider.name(), None, 1, window, cx);
-        let api_url = single_line_input("API URL", provider.api_url(), None, 2, window, cx);
+            single_line_input("Provider Name", provider.name(), None, 1, None, window, cx);
+        let api_url = single_line_input("API URL", provider.api_url(), None, 2, None, window, cx);
         let api_key = cx.new(|cx| {
             InputField::new(
                 window,
@@ -123,6 +128,7 @@ impl ModelInput {
             "e.g. gpt-5, claude-opus-4, gemini-2.5-pro",
             None,
             base_tab_index + 1,
+            None,
             window,
             cx,
         );
@@ -131,6 +137,7 @@ impl ModelInput {
             "200000",
             Some("200000"),
             base_tab_index + 2,
+            Some(px(0.).into()),
             window,
             cx,
         );
@@ -139,6 +146,7 @@ impl ModelInput {
             "Max Output Tokens",
             Some("32000"),
             base_tab_index + 3,
+            Some(px(0.).into()),
             window,
             cx,
         );
@@ -147,6 +155,7 @@ impl ModelInput {
             "Max Tokens",
             Some("200000"),
             base_tab_index + 4,
+            None,
             window,
             cx,
         );

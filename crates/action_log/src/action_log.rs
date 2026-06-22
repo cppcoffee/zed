@@ -341,7 +341,7 @@ impl ActionLog {
                         );
                     }
 
-                    (Arc::from(base_text.to_string().as_str()), base_text)
+                    (Arc::from(base_text.to_string()), base_text)
                 }
             });
 
@@ -436,7 +436,7 @@ impl ActionLog {
                     }
 
                     (
-                        Arc::from(new_agent_diff_base.to_string().as_str()),
+                        Arc::from(new_agent_diff_base.to_string()),
                         new_agent_diff_base,
                     )
                 }))

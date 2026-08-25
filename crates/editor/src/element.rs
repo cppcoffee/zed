@@ -6387,10 +6387,20 @@ impl EditorElement {
             }
 
             let minimap_axis = ScrollbarAxis::Vertical;
-            let pixels_per_line = Pixels::from(
-                ScrollPixelOffset::from(minimap_hitbox.size.height) / layout.max_scroll_top,
-            )
-            .min(layout.minimap_line_height);
+            let visible_editor_lines =
+                layout.thumb_layout.visible_range.end - layout.thumb_layout.visible_range.start;
+            let scrollable_editor_lines = layout.max_scroll_top - visible_editor_lines;
+            let visible_minimap_lines =
+                f64::from(minimap_hitbox.size.height / layout.minimap_line_height);
+            let minimap_scroll_per_editor_line = if scrollable_editor_lines > 0. {
+                (layout.max_scroll_top - visible_minimap_lines).max(0.) / scrollable_editor_lines
+            } else {
+                0.
+            };
+            let pixels_per_line = layout.thumb_layout.text_unit_size
+                - Pixels::from(
+                    minimap_scroll_per_editor_line * f64::from(layout.minimap_line_height),
+                );
 
             let mut mouse_position = window.mouse_position();
 
